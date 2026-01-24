@@ -1,23 +1,22 @@
--- public.users definition
--- Drop table
--- DROP TABLE public.users;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE
-    public.users (
+    IF NOT EXISTS public.users (
         user_id uuid DEFAULT gen_random_uuid () NOT NULL,
         username varchar(50) NOT NULL,
-        "password" varchar(128) NOT NULL,
-        email varchar(100) NULL,
-        phone varchar(20) NULL,
-        status bpchar (1) NULL,
-        create_time timestamptz DEFAULT now () NULL,
-        avatar_url varchar(255) NULL,
-        avatar_update_time timestamptz NULL,
+        password varchar(255) NOT NULL,
+        email varchar(100),
+        phone varchar(20),
+        status bpchar (1),
+        create_time timestamptz DEFAULT now (),
+        avatar_url varchar(255),
+        avatar_update_time timestamptz,
         is_admin bool DEFAULT false NOT NULL,
+        nick_name varchar(20),
         CONSTRAINT users_pkey PRIMARY KEY (user_id),
         CONSTRAINT users_username_key UNIQUE (username)
     );
 
--- Insert admin user
 INSERT INTO
     users (
         username,
@@ -35,4 +34,4 @@ VALUES
         NULL,
         '1',
         TRUE
-    );
+    ) ON CONFLICT (username) DO NOTHING;
