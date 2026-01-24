@@ -2,11 +2,12 @@ from fastapi import FastAPI
 import os
 import psycopg
 import redis
+from app.core.config import settings
 
 app = FastAPI()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-REDIS_URL = os.getenv("REDIS_URL")
+DATABASE_URL = settings.DATABASE_URL
+REDIS_URL = settings.REDIS_URL
 
 @app.get("/")
 def healthz():
