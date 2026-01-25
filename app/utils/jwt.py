@@ -1,6 +1,6 @@
 import jwt
-from app.config import settings
-from datetime_utils import utc_now_plus, utc_timestamp
+from app.core.config import settings
+from app.utils.datetime_utils import utc_now_plus, utc_timestamp
 
 def verify_jwt(token:str) -> dict:
     try:
