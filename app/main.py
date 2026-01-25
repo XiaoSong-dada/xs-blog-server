@@ -3,8 +3,10 @@ import os
 import psycopg
 import redis
 from app.core.config import settings
+from app.api import api_router
 
 app = FastAPI()
+app.include_router(api_router, prefix="/api")
 
 DATABASE_URL = settings.DATABASE_URL
 REDIS_URL = settings.REDIS_URL
