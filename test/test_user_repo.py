@@ -1,5 +1,23 @@
-from app.repositories.user_repo import get_user_by_username
+from fastapi.testclient import TestClient
+from app.main import app
+from app.utils.verification import is_null_or_empty
+from app.schemas.user import UserCreate
+from uuid import uuid4
 
-def test_get_user_by_username_not_exists():
-    user = get_user_by_username("example_username")
-    assert user is None
+client = TestClient(app)
+
+def test_login():
+    r = client.post("/api/auth/login", json={"username":"admin","password":"123456"})
+    assert r.status_code == 200
+
+def test_register():
+    username = f"admin_{uuid4().hex[:8]}"
+    payload = UserCreate(username=username, password="123456").model_dump()
+    r = client.post("/api/users/register", json=payload)
+    assert r.status_code == 201
+
+
+def test_is_null_or_empty():
+    assert is_null_or_empty(None)
+    assert is_null_or_empty("")
+    assert not is_null_or_empty("abc")

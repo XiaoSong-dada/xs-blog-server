@@ -5,3 +5,4 @@ redis
 passlib[argon2]
 PyJWT
 pytest
+httpx
