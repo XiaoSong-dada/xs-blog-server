@@ -26,6 +26,8 @@ def fetch_one(conn: psycopg.Connection, sql: str, params: Params = None) -> Row 
     - 不提交事务（读操作不需要 commit）
     """
     with conn.cursor() as cur:
+        if isinstance(params, str):
+            raise TypeError("params must be tuple/list/dict; for single param use (value,)")
         cur.execute(sql, params)
         row = cur.fetchone()
         if row is None:
@@ -40,6 +42,8 @@ def fetch_all(conn: psycopg.Connection, sql: str, params: Params = None) -> list
     - 不提交事务
     """
     with conn.cursor() as cur:
+        if isinstance(params, str):
+            raise TypeError("params must be tuple/list/dict; for single param use (value,)")
         cur.execute(sql, params)
         rows = cur.fetchall()
         if not rows:
