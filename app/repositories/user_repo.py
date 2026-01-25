@@ -40,3 +40,25 @@ def create_user(conn: psycopg.Connection, user: UserInDB) -> bool:
 
     affected = execute(conn, sql, params)
     return affected == 1
+
+def delete_by_username(conn: psycopg.Connection, username: str) -> bool:
+    """
+    删除用户
+    返回值语义（标准）：
+    - True  = 删除成功
+    - False = 用户不存在导致未删除（业务可预期失败）
+    - 其他 DB/SQL 异常：抛出（系统失败）
+    """
+    select_sql = """
+    SELECT user_id FROM users WHERE username = %s
+    """
+    user = fetch_one(conn, select_sql, (username,))
+    if not user:
+        return False
+
+    sql = """
+    DELETE FROM users
+    WHERE user_id = %s
+    """
+    affected = execute(conn, sql, (user["user_id"],))
+    return affected == 1
