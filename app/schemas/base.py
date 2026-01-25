@@ -1,15 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Any
 
 class Base(BaseModel):
-    class Config:
-        orm_mode = True          
+    model_config = ConfigDict(from_attributes=True)
 
-
+    
 class SuccessResponse(Base):
     code: int
     message: str
-    data: Any|None
+    data: Any | None = None
 
 class ErrorResponse(Base):
     code: int
