@@ -1,7 +1,7 @@
 from app.db.read_connection import read_connection
 from app.repositories.user_repo import get_user_by_username
-from app.utils.password import verify_password
-from app.utils.jwt import create_jwt
+from app.security.password import verify_password
+from app.security.jwt import create_jwt
 from app.schemas.user import UserOut
 
 def authenticate_user(username: str, password: str) -> str | None:
