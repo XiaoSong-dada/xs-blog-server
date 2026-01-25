@@ -18,3 +18,13 @@ def create_jwt(data: dict) -> str:
     payload['exp'] = int((utc_timestamp(utc_now_plus(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))))
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token
+
+# 获取payload
+def decode_jwt(token: str) -> dict | None:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
