@@ -1,8 +1,8 @@
-from app.schemas.user import UserInDB
-from app.repositories.base import fetch_one
+from app.schemas.user import UserInDB, UserListQuery
+from app.repositories.base import fetch_one, fetch_page, fetch_count
+from app.repositories.sql_builders.user_list import build_user_list_query
 import psycopg
 from app.repositories.base import execute
-
 
 # 获取用户
 def get_user_by_username(conn: psycopg.Connection, username: str) -> UserInDB | None:
@@ -62,3 +62,15 @@ def delete_by_username(conn: psycopg.Connection, username: str) -> bool:
     """
     affected = execute(conn, sql, (user["user_id"],))
     return affected == 1
+
+def list_users( conn: psycopg.Connection,
+    limit: int = 10,
+    offset: int = 0,
+    search: UserListQuery | None = None,) -> tuple[list[UserInDB], int]:
+    
+    built = build_user_list_query(search)
+
+    rows = fetch_page(conn, built.data_sql, built.params, limit=limit, offset=offset)
+    total = fetch_count(conn, built.count_sql, built.params)
+
+    return [UserInDB(**row) for row in rows], total

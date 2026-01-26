@@ -14,3 +14,7 @@ class ErrorResponse(Base):
     code: int
     message: str
 
+class PaginatedResponse(SuccessResponse):
+    limit: int
+    offset: int
+    total: int

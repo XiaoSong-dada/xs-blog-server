@@ -1,4 +1,5 @@
 from app.schemas.base import Base
+from app.schemas.params import PageQuery
 from uuid import UUID, uuid4
 from typing import Optional
 from pydantic import Field
@@ -27,3 +28,9 @@ class UserOut(Base):
     is_admin: bool
     avatar_url: Optional[str] = None
     nick_name: Optional[str] = None
+
+class UserListQuery(PageQuery):
+    username: str | None = None
+    email: str | None = None
+    nick_name: str | None = None
+    is_admin: bool | None = None

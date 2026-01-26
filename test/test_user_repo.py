@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 from app.main import app
 from app.utils.verification import is_null_or_empty
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, UserListQuery
 from uuid import uuid4
 import pytest
 
@@ -39,9 +39,26 @@ def user_token_and_username():
     return token, username
 
 
-def test_delete_user_not_login():
+#查询用户列表
+def test_get_user_list_admin(admin_token):
+    payload = UserListQuery().model_dump()
+    r = client.get("/api/users", json=payload)
+    r = client.get("/api/users",
+                    params={"page": 1, "size": 10},
+                    headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+
+#查询用户列表根据username过滤
+def test_get_user_list_admin(admin_token):
+    payload = UserListQuery(username=username).model_dump()
+    r = client.get("/api/users",
+                    params={"page": 1, "size": 10},
+                    headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+
+def test_delete_user_not_login(user_token_and_username):
     r = client.delete(
-        f"/api/users/delete/{username}",
+        f"/api/users/{username}",
         headers={"Authorization": "Bearer invalid"},
     )
     assert r.status_code == 401
@@ -50,7 +67,7 @@ def test_delete_user_not_login():
 def test_delete_user_is_login_not_admin(user_token_and_username):
     user_token, target_username = user_token_and_username
     r = client.delete(
-        f"/api/users/delete/{target_username}",
+        f"/api/users/{target_username}",
         headers={"Authorization": f"Bearer {user_token}"},
     )
     assert r.status_code == 403
@@ -58,17 +75,19 @@ def test_delete_user_is_login_not_admin(user_token_and_username):
 def test_delete_user_is_admin(admin_token):
     
     r = client.delete(
-        f"/api/users/delete/{username}",
+        f"/api/users/{username}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert r.status_code == 200
 
     r = client.delete(
-        f"/api/users/delete/{admin_username}",
+        f"/api/users/{admin_username}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
     assert r.status_code == 200
+
+
 
 def test_is_null_or_empty():
     assert is_null_or_empty(None)

@@ -1,6 +1,6 @@
 from app.db.transaction import transaction
-from app.repositories.user_repo import create_user, delete_by_username
-from app.schemas.user import UserCreate, UserInDB
+from app.repositories.user_repo import create_user, delete_by_username, list_users
+from app.schemas.user import UserCreate, UserInDB, UserListQuery
 from app.security.password import get_password_hash
 
 class UsernameTakenError(RuntimeError):
@@ -56,3 +56,22 @@ def delete_user(username: str, admin_user) -> None:
         ok = delete_by_username(conn, username)
         if not ok:
             raise UsernameTakenError("用户不存在！")
+        
+def get_users_page(search: UserListQuery | None = None):
+    search = search or UserListQuery()  # ✅ 防 None
+
+    with transaction() as conn:
+        users, total = list_users(
+            conn,
+            limit=search.limit,
+            offset=search.offset,
+            search=search,
+        )
+
+    offset = search.offset // search.limit + 1  # limit 已经保证 >= 1
+    return {
+        "data": [u.model_dump() for u in users],
+        "total": total,
+        "offset": offset,
+        "limit": search.limit,
+    }
