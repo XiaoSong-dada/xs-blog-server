@@ -7,6 +7,19 @@ import pytest
 
 client = TestClient(app)
 
+username = f"user_{uuid4().hex[:8]}"
+def test_register():
+    payload = UserCreate(username=username, password="123456").model_dump()
+    r = client.post("/api/users/register", json=payload)
+    assert r.status_code == 201
+
+admin_username = f"admin_{uuid4().hex[:8]}"
+def test_register_admin():
+    payload = UserCreate(username=admin_username, password="123456").model_dump()
+    r = client.post("/api/users/register", json=payload)
+    assert r.status_code == 201
+
+
 @pytest.fixture(scope="module")
 def admin_token():
     r = client.post("/api/auth/login", json={"username": "xiaosong", "password": "1234"})
@@ -18,19 +31,13 @@ def admin_token():
 
 @pytest.fixture(scope="module")
 def user_token_and_username():
-
-    r = client.post("/api/auth/login", json={"username": 'admin_c3fb1e2e', "password": "123456"})
+    r = client.post("/api/auth/login", json={"username": username, "password": "123456"})
     assert r.status_code == 200
     data = r.json().get("data") or {}
     token = data.get("token")
     assert token
     return token, username
 
-username = f"admin_{uuid4().hex[:8]}"
-def test_register():
-    payload = UserCreate(username=username, password="123456").model_dump()
-    r = client.post("/api/users/register", json=payload)
-    assert r.status_code == 201
 
 def test_delete_user_not_login():
     r = client.delete(
@@ -54,6 +61,13 @@ def test_delete_user_is_admin(admin_token):
         f"/api/users/delete/{username}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
+    assert r.status_code == 200
+
+    r = client.delete(
+        f"/api/users/delete/{admin_username}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
     assert r.status_code == 200
 
 def test_is_null_or_empty():

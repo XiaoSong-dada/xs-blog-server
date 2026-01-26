@@ -28,8 +28,8 @@ INSERT INTO
     )
 VALUES
     (
-        'admin',
-        '$argon2id$v=19$m=65536,t=3,p=4$6bZ5Q3lVbGJzU1F6bTJiMA$X9p4r+1bP9Zq1Z6tP3s9+XrWcH6Kq1N3R5Z6QKc8y9M',
+        'xiaosong',
+        '$argon2id$v=19$m=65536,t=3,p=4$E+Jc6z3H2DvnvLe2FqJUag$0itzP9Mc83qIXofsKDs+SXRcJVriqbQhJDAGRMZXk10',
         'admin@example.com',
         NULL,
         '1',
