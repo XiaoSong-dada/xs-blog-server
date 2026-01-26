@@ -1,15 +1,32 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import os
 import psycopg
 import redis
 from app.core.config import settings
 from app.api import api_router
+from app.core.exceptions import AppError
+from app.schemas.base import ErrorResponse
+from fastapi.responses import JSONResponse
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 app = FastAPI()
 app.include_router(api_router, prefix="/api")
 
 DATABASE_URL = settings.DATABASE_URL
 REDIS_URL = settings.REDIS_URL
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    return JSONResponse(
+        status_code=exc.code,
+        content=ErrorResponse(code=exc.code, message=exc.message).model_dump(),
+    )
 
 @app.get("/")
 def healthz():
