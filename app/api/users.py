@@ -22,7 +22,7 @@ def delete(user_name: str, admin_user=Depends(require_admin)):
     return SuccessResponse(message="delete success", code=200)
 
 
-@router.get("/", response_model=PaginatedResponse)
+@router.get("", response_model=PaginatedResponse)
 def list(query: UserListQuery = Depends(), _admin=Depends(require_admin)):
     logger.info("query: %s", query)
     user_data = get_users_page(query)
