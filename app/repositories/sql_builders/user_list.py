@@ -32,7 +32,7 @@ def build_user_list_query(search: UserListQuery | None = None) -> BuiltQuery:
     where = q.where_sql()
 
     # 注意：分页的 LIMIT/OFFSET 由 fetch_page 统一追加
-    data_sql = base_select + where + " ORDER BY user_id"
+    data_sql = base_select + where + " ORDER BY username"
     count_sql = base_count + where
 
     return BuiltQuery(data_sql=data_sql, count_sql=count_sql, params=tuple(q.params))

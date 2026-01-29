@@ -1,3 +1,4 @@
+-- 创建用户表
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE
@@ -35,3 +36,23 @@ VALUES
         '1',
         TRUE
     ) ON CONFLICT (username) DO NOTHING;
+
+-- 创建文章表
+-- public.article definition
+-- Drop table
+-- DROP TABLE public.article;
+CREATE TABLE
+    public.article (
+        id uuid DEFAULT gen_random_uuid () NOT NULL,
+        author_id uuid NOT NULL,
+        title varchar(80) NOT NULL,
+        slug varchar(120) NOT NULL,
+        content_md text NULL,
+        view_count int4 DEFAULT 0 NOT NULL,
+        created_at timestamptz DEFAULT now () NOT NULL,
+        updated_at timestamptz DEFAULT now () NOT NULL,
+        published_at timestamptz NULL,
+        deleted_at timestamptz NULL,
+        CONSTRAINT article_pk PRIMARY KEY (id),
+        CONSTRAINT article_unique UNIQUE (slug)
+    );

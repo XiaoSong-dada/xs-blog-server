@@ -4,6 +4,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+@dataclass(frozen=True)
+class BuiltQuery:
+    data_sql: str
+    count_sql: str
+    params: tuple[Any, ...]
+
+
 @dataclass
 class QueryParts:
     """
@@ -11,6 +18,7 @@ class QueryParts:
     - 只负责 WHERE 条件与参数的拼装
     - 不负责执行 SQL
     """
+
     conditions: list[str] = field(default_factory=list)
     params: list[Any] = field(default_factory=list)
 
@@ -20,7 +28,9 @@ class QueryParts:
             self.conditions.append(f"{column} = %s")
             self.params.append(value)
 
-    def where_like(self, column: str, value: str | None, case_insensitive: bool = True) -> None:
+    def where_like(
+        self, column: str, value: str | None, case_insensitive: bool = True
+    ) -> None:
         """column ILIKE/LIKE %s（value 非空才加），自动包裹 %value%"""
         if value:
             op = "ILIKE" if case_insensitive else "LIKE"
