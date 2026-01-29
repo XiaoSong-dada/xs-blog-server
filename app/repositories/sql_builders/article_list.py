@@ -8,10 +8,11 @@ from app.schemas.article import ArticleQuery
 
 def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuery:
     base_select = """
-    SELECT id, author_id, title, slug, content_md, created_at, updated_at, published_at deleted_at
+    SELECT id, author_id, title, slug, content_md, created_at, 
+    updated_at, published_at ,deleted_at, view_count  
     FROM article
     """
-    base_count = "SELECT COUNT(*) FROM users"
+    base_count = "SELECT COUNT(*) FROM article"
 
     q = QueryParts()
 

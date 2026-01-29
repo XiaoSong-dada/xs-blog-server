@@ -1,8 +1,7 @@
 from app.core.exceptions import AppError
 from app.db.transaction import transaction
-from app.repositories.article_repo import list_article
-from app.schemas.article import ArticleQuery, Article
-from app.security.password import get_password_hash
+from app.repositories.article_repo import list_article, detail_article_by_slug
+from app.schemas.article import ArticleQuery
 
 
 def get_article_page(search: ArticleQuery | None = None):
@@ -22,3 +21,12 @@ def get_article_page(search: ArticleQuery | None = None):
         "limit": search.limit,
         "offset": search.offset,
     }
+
+
+def get_article_by_slug(slug: str):
+    with transaction() as conn:
+        article = detail_article_by_slug(conn, slug)
+        if not article:
+            raise AppError("article not found", code=404)
+
+    return article

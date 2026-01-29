@@ -7,13 +7,6 @@ from app.schemas.article import Article
 from typing import Optional
 
 
-def get_detail_article_by_slug(
-    conn: psycopg.Connection, limit: int = 10, offset: int = 0, slug: str = ""
-) -> Article:
-
-    return Article
-
-
 def list_article(
     conn: psycopg.Connection,
     limit: int = 10,
@@ -27,3 +20,14 @@ def list_article(
     total = fetch_count(conn, built.count_sql, built.params)
 
     return [Article(**row) for row in rows], total
+
+
+def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
+    sql = """
+    SELECT id, author_id, title, slug, content_md,
+    created_at, updated_at, published_at, deleted_at,view_count  
+    FROM article
+    WHERE slug = %s
+    """
+    data = fetch_one(conn, sql, (slug,))
+    return Article(**data) if data else None

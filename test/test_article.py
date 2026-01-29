@@ -6,6 +6,18 @@ client = TestClient(app)
 
 
 def test_get_article_list():
-    payload = ArticleQuery(title=None, slug=None, content_md=None).model_dump(exclude_none=True)
+    payload = ArticleQuery(title=None, slug=None, content_md=None).model_dump(
+        exclude_none=True
+    )
     r = client.get("/api/article", params=payload)
+    assert r.status_code == 200
+
+
+def test_get_article_detail_by_slug_db_not_has():
+    r = client.get("/api/article/a")
+    assert r.status_code == 404
+
+
+def test_get_article_detail_by_slug_db_has():
+    r = client.get("/api/article/test-title")
     assert r.status_code == 200
