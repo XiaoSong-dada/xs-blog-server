@@ -23,3 +23,5 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+
+storage

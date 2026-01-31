@@ -1,8 +1,14 @@
 from app.core.exceptions import AppError
 from app.db.transaction import transaction
-from app.repositories.user_repo import create_user, delete_by_username, list_users
+from app.repositories.user_repo import (
+    create_user,
+    delete_by_username,
+    list_users,
+    get_user_by_username,
+)
 from app.schemas.user import UserCreate, UserInDB, UserListQuery
 from app.security.password import get_password_hash
+from app.utils.verification import is_null_or_empty
 
 
 def register_user(user: UserCreate) -> None:
@@ -62,3 +68,13 @@ def get_users_page(search: UserListQuery | None = None):
         "limit": search.limit,
         "offset": search.offset,
     }
+
+
+def get_cache_user_detail(username: str) -> UserInDB:
+    if is_null_or_empty(username):
+        raise AppError("查询用户名不能为空!", code=404)
+    with transaction() as conn:
+        user = get_user_by_username(conn, username)
+        if not user:
+            raise AppError("用户未找到", code=404)
+    return user

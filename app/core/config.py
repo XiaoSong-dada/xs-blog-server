@@ -1,5 +1,6 @@
 import os
 
+
 class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL")
     REDIS_URL = os.getenv("REDIS_URL")
@@ -11,6 +12,10 @@ class Settings:
     POSTGRES_USER: str = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB")
-    ALLOWED_ORIGINS: list[str] = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    ALLOWED_ORIGINS: list[str] = os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:5173"
+    ).split(",")
+    FILE_STORAGE_PATH: str | None = os.getenv("FILE_STORAGE_PATH")
+
 
 settings = Settings()

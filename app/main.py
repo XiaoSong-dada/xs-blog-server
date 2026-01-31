@@ -9,6 +9,7 @@ from app.core.exceptions import AppError
 from app.schemas.base import ErrorResponse
 from fastapi.responses import JSONResponse
 import logging
+from fastapi.staticfiles import StaticFiles
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,8 +17,9 @@ logging.basicConfig(
 )
 
 
-
 app = FastAPI()
+app.mount("/static", StaticFiles(directory=settings.FILE_STORAGE_PATH), name="static")
+
 app.include_router(api_router, prefix="/api")
 
 app.add_middleware(
@@ -40,15 +42,16 @@ async def app_error_handler(request: Request, exc: AppError):
         content=ErrorResponse(code=exc.code, message=exc.message).model_dump(),
     )
 
+
 @app.get("/")
 def healthz():
     return {"status": "200", "message": "请访问从入口页访问"}
 
 
-
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
 
 @app.get("/db-check")
 def db_check():
@@ -63,6 +66,7 @@ def db_check():
         return {"ok": True, "value": value}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
 
 @app.get("/cache-check")
 def cache_check():

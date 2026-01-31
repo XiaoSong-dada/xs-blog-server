@@ -11,6 +11,7 @@ class UserCreate(Base):
     email: Optional[str] = None
     nick_name: Optional[str] = None
 
+
 class UserInDB(Base):
     user_id: UUID = Field(default_factory=uuid4)
     username: str
@@ -20,14 +21,17 @@ class UserInDB(Base):
     is_admin: bool = False
     avatar_url: Optional[str] = None
     nick_name: Optional[str] = None
-    
-class UserOut(Base): 
+
+
+class UserOut(Base):
+    user_id: UUID = Field(default_factory=uuid4)
     username: str
     email: Optional[str] = None
     status: str
     is_admin: bool
     avatar_url: Optional[str] = None
     nick_name: Optional[str] = None
+
 
 class UserListQuery(PageQuery):
     username: str | None = None
