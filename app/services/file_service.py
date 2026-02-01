@@ -37,22 +37,25 @@ def upload_file(file: UploadFile, owner_user_id: str, bucket: str = "attachment"
     with open(file_storage_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    file = File(
+    file_record = File(
         owner_user_id=owner_user_id,
         original_name=file.filename,
         bucket=bucket,
-        stored_path="/" + file_path,
+        stored_path=file_path,
         content_type=file.content_type,
         size=get_uploadfile_size(file),
         created_at=now,
     )
 
-    with transaction() as conn:
-        ok = create_file(conn, file)
-        if not ok:
-            raise AppError(
-                "记录文件数据信息失败!", code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+    try:
+        with transaction() as conn:
+            ok = create_file(conn, file_record)
+            if not ok:
+                raise AppError(...)
+    except Exception:
+        if os.path.exists(file_storage_path):
+            os.remove(file_storage_path)
+        raise
 
     return None
 
