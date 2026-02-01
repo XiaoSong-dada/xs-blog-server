@@ -1,12 +1,22 @@
 from app.core.exceptions import AppError
 from app.db.transaction import transaction
+from uuid import UUID
 from app.repositories.article_repo import (
     list_article,
     detail_article_by_slug,
     create_article as create,
+    update_article as update,
+    exists_slug_except_id,
+    delete_article as delete,
 )
-from app.schemas.article import ArticleQuery, ArticleCreated
+from app.schemas.article import (
+    ArticleQuery,
+    ArticleCreated,
+    ArticleUpdate,
+    ArticleDelete,
+)
 from fastapi import status
+from app.utils.datetime_utils import utc_now
 
 
 def get_article_page(search: ArticleQuery | None = None):
@@ -42,10 +52,37 @@ def create_article(article: ArticleCreated) -> bool:
     with transaction() as conn:
         repeat = detail_article_by_slug(conn, article.slug)
         if repeat:
-            raise AppError("slug重复", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
 
         ok = create(conn, article)
         if not ok:
             raise AppError("新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return True
+
+
+def update_article(article: ArticleUpdate) -> bool:
+    with transaction() as conn:
+        # slug 修改查重
+        repeat = exists_slug_except_id(conn, article.slug, article.id)
+        if repeat:
+            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
+
+        ok = update(conn, article)
+        if not ok:
+            raise AppError("修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return True
+
+
+def delete_acticle(id: UUID) -> bool:
+
+    with transaction() as conn:
+        # slug 修改查重
+        article = ArticleDelete(id=id, deleted_at=utc_now())
+
+        ok = delete(conn, article)
+        if not ok:
+            raise AppError("删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return True

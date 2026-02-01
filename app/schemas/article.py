@@ -30,3 +30,15 @@ class ArticleCreated(Base):
     title: str
     slug: str
     content_md: str
+
+
+class ArticleUpdate(Base):
+    id: UUID
+    title: str
+    slug: str
+    content_md: str
+
+
+class ArticleDelete(Base):
+    id: UUID
+    deleted_at: datetime

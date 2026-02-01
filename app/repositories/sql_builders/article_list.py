@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-from dataclasses import dataclass
 from typing import Optional
 from app.repositories.sql_builders._parts import QueryParts, BuiltQuery
 from app.schemas.article import ArticleQuery
@@ -20,6 +18,7 @@ def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuer
         q.where_like("slug", search.slug)
         q.where_like("title", search.title)
         q.where_like("content_md", search.content_md)
+        q.where_is_null("deleted_at")
 
     where = q.where_sql()
 

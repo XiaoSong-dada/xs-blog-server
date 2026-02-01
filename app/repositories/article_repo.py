@@ -3,7 +3,7 @@ from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.article_list import build_article_list_query
 import psycopg
 from app.repositories.base import execute
-from app.schemas.article import Article, ArticleCreated
+from app.schemas.article import Article, ArticleCreated, ArticleUpdate, ArticleDelete
 from typing import Optional
 
 
@@ -45,6 +45,43 @@ def create_article(conn: psycopg.Connection, article: ArticleCreated) -> bool:
         article.slug,
         article.content_md,
     )
+
+    affected = execute(conn, sql, params)
+    return affected == 1
+
+
+def update_article(conn: psycopg.Connection, article: ArticleUpdate) -> bool:
+    sql = """
+        UPDATE article
+        SET title = %s, slug = %s, content_md = %s
+        WHERE id = %s;
+    """
+    params = (
+        article.title,
+        article.slug,
+        article.content_md,
+        article.id,
+    )
+
+    affected = execute(conn, sql, params)
+    return affected == 1
+
+
+def exists_slug_except_id(conn, slug: str, article_id: str) -> bool:
+    sql = """
+    SELECT 1
+    FROM article
+    WHERE slug = %s AND id != %s
+    LIMIT 1
+    """
+    return fetch_one(conn, sql, (slug, article_id)) is not None
+
+
+def delete_article(conn: psycopg.Connection, article: ArticleDelete) -> bool:
+    sql = """
+            UPDATE article SET deleted_at = %s WHERE id = %s;
+        """
+    params = (article.deleted_at, article.id)
 
     affected = execute(conn, sql, params)
     return affected == 1
