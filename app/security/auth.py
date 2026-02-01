@@ -1,16 +1,30 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
+import logging
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.security.jwt import decode_jwt
+from app.services.user_service import get_cache_user_detail
+
+logger = logging.getLogger(__name__)
+
 
 security = HTTPBearer()
+
 
 def get_current_user(
     creds: HTTPAuthorizationCredentials = Depends(security),
 ):
     token = creds.credentials
     payload = decode_jwt(token)  # 你已有 jwt 工具
-    if not payload:
+    if not payload or "username" not in payload:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    # payload里一般有 user_id/username/is_admin
-    return payload  # 或去DB查用户对象
+    logger.info("login user %s", payload)
+    username = payload["username"]
+
+    # 否则从数据库查询
+    user = get_cache_user_detail(username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 4. 返回用户对象或用户信息，进一步提升 API 层级结构化
+    return user

@@ -4,6 +4,7 @@ from app.repositories.sql_builders.user_list import build_user_list_query
 import psycopg
 from app.repositories.base import execute
 
+
 # 获取用户
 def get_user_by_username(conn: psycopg.Connection, username: str) -> UserInDB | None:
     sql = """
@@ -13,6 +14,18 @@ def get_user_by_username(conn: psycopg.Connection, username: str) -> UserInDB | 
     """
     data = fetch_one(conn, sql, (username,))
     return UserInDB(**data) if data else None
+
+
+# 获取用户通过id
+def get_user_by_id(conn: psycopg.Connection, user_id: str) -> UserInDB | None:
+    sql = """
+    SELECT user_id, username, password, status, is_admin, avatar_url, email, nick_name
+    FROM users
+    WHERE user_id = %s
+    """
+    data = fetch_one(conn, sql, (user_id,))
+    return UserInDB(**data) if data else None
+
 
 # 创建用户
 def create_user(conn: psycopg.Connection, user: UserInDB) -> bool:
@@ -41,6 +54,7 @@ def create_user(conn: psycopg.Connection, user: UserInDB) -> bool:
     affected = execute(conn, sql, params)
     return affected == 1
 
+
 def delete_by_username(conn: psycopg.Connection, username: str) -> bool:
     """
     删除用户
@@ -63,11 +77,14 @@ def delete_by_username(conn: psycopg.Connection, username: str) -> bool:
     affected = execute(conn, sql, (user["user_id"],))
     return affected == 1
 
-def list_users( conn: psycopg.Connection,
+
+def list_users(
+    conn: psycopg.Connection,
     limit: int = 10,
     offset: int = 0,
-    search: UserListQuery | None = None,) -> tuple[list[UserInDB], int]:
-    
+    search: UserListQuery | None = None,
+) -> tuple[list[UserInDB], int]:
+
     built = build_user_list_query(search)
 
     rows = fetch_page(conn, built.data_sql, built.params, limit=limit, offset=offset)

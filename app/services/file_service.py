@@ -5,7 +5,10 @@ import shutil
 import uuid
 import logging
 from app.core.exceptions import AppError
-from app.utils.verification import is_null_or_empty
+from app.repositories.file_ropo import create_file
+from app.db.transaction import transaction
+from app.schemas.file import File
+from app.utils.datetime_utils import utc_now
 
 BYTES_PER_MB = 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -16,17 +19,33 @@ def generate_filename(original_filename: str) -> str:
     return f"{uuid.uuid4().hex}{ext}"
 
 
-def upload_file(file: UploadFile, ower_user_id: str, bucket: str = "default"):
+def upload_file(file: UploadFile, owner_user_id: str, bucket: str = "attachment"):
 
     validate_file_or_raise(file, bucket)
 
     file_storage_path = os.path.join(
         settings.FILE_STORAGE_PATH, generate_filename(file.filename)
     )
-    user_id = ower_user_id  # 这个用户名后续再用
     os.makedirs(settings.FILE_STORAGE_PATH, exist_ok=True)
     with open(file_storage_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+
+    file = File(
+        owner_user_id=owner_user_id,
+        original_name=file.filename,
+        bucket=bucket,
+        stored_path=file_storage_path,
+        content_type=file.content_type,
+        size=get_uploadfile_size(file),
+        created_at=utc_now(),
+    )
+
+    with transaction() as conn:
+        ok = create_file(conn, file)
+        if not ok:
+            raise AppError(
+                "记录文件数据信息失败!", code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     return None
 
@@ -41,15 +60,15 @@ bucket_dict = {
         ),
     },
     "markdown": {"max_bytes": 5 * BYTES_PER_MB, "types": ("text/markdown",)},
-    "default": {"max_bytes": 20 * BYTES_PER_MB, "types": ("text/markdown",)},
+    "attachment": {"max_bytes": 20 * BYTES_PER_MB, "types": ("text/markdown",)},
 }
 
 
 def get_bucket_cfg(bucket: str | None) -> dict:
-    # bucket 为空 or 不存在 -> 用 default
+    # bucket 为空 or 不存在 -> 用 attachment
     if not bucket or bucket.strip() == "":
-        return bucket_dict["default"]
-    return bucket_dict.get(bucket, bucket_dict["default"])
+        return bucket_dict["attachment"]
+    return bucket_dict.get(bucket, bucket_dict["attachment"])
 
 
 def get_uploadfile_size(file: UploadFile) -> int:

@@ -10,8 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=SuccessResponse)
-def upload(file: UploadFile = UploadField(...), user=Depends(require_login)):
+def upload(
+    file: UploadFile = UploadField(...),
+    bucket: str = Form("attachment"),
+    _user=Depends(require_login),
+):
     logger.info("file:%s", file)
-    logger.info("login_user:%s", user)
-    upload_file(file, user["user_id"])
+    logger.info("login_user:%s", _user)
+    upload_file(file, _user.user_id, bucket)
     return SuccessResponse(message="ok", code=200, data="")

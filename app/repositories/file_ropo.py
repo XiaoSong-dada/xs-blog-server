@@ -1,20 +1,19 @@
 import psycopg
 from app.schemas.file import File
-from app.repositories.base import fetch_one
+from app.repositories.base import execute
 
 
 def create_file(conn: psycopg.Connection, file: File) -> File | None:
     sql = """
     INSERT INTO files (
-        id, owner_user_id, bucket, original_name, stored_path,
+         owner_user_id, bucket, original_name, stored_path,
         content_type, size, sha256
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    RETURNING id, owner_user_id, bucket, original_name, stored_path,
+    VALUES ( %s, %s, %s, %s, %s, %s, %s)
+    RETURNING  owner_user_id, bucket, original_name, stored_path,
               content_type, size, sha256, created_at, deleted_at
     """
     params = (
-        file.id,
         file.owner_user_id,
         file.bucket,
         file.original_name,
@@ -23,5 +22,5 @@ def create_file(conn: psycopg.Connection, file: File) -> File | None:
         file.size,
         file.sha256,
     )
-    data = fetch_one(conn, sql, params)
-    return File(**data) if data else None
+    affected = execute(conn, sql, params)
+    return affected == 1

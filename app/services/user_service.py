@@ -5,6 +5,7 @@ from app.repositories.user_repo import (
     delete_by_username,
     list_users,
     get_user_by_username,
+    get_user_by_id,
 )
 from app.schemas.user import UserCreate, UserInDB, UserListQuery
 from app.security.password import get_password_hash
@@ -75,6 +76,16 @@ def get_cache_user_detail(username: str) -> UserInDB:
         raise AppError("查询用户名不能为空!", code=404)
     with transaction() as conn:
         user = get_user_by_username(conn, username)
+        if not user:
+            raise AppError("用户未找到", code=404)
+    return user
+
+
+def get_user_detail_by_id(user_id: str) -> UserInDB:
+    if is_null_or_empty(user_id):
+        raise AppError("查询用户名不能为空!", code=404)
+    with transaction() as conn:
+        user = get_user_by_id(conn, user_id)
         if not user:
             raise AppError("用户未找到", code=404)
     return user
