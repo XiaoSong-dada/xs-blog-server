@@ -7,7 +7,7 @@ import logging
 from app.core.exceptions import AppError
 from app.repositories.file_ropo import create_file
 from app.db.transaction import transaction
-from app.schemas.file import File
+from app.schemas.file import File, FileOut
 from app.utils.datetime_utils import utc_now
 
 BYTES_PER_MB = 1024 * 1024
@@ -57,7 +57,7 @@ def upload_file(file: UploadFile, owner_user_id: str, bucket: str = "attachment"
             os.remove(file_storage_path)
         raise
 
-    return None
+    return FileOut(**file_record.model_dump())
 
 
 bucket_dict = {

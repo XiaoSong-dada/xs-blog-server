@@ -16,3 +16,8 @@ class File(Base):
     sha256: Optional[str] = None
     created_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
+
+
+class FileOut(Base):
+    original_name: str
+    stored_path: str

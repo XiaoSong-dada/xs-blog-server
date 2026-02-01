@@ -15,7 +15,9 @@ def upload(
     bucket: str = Form("attachment"),
     _user=Depends(require_login),
 ):
-    logger.info("file:%s", file)
-    logger.info("login_user:%s", _user)
-    upload_file(file, _user.user_id, bucket)
-    return SuccessResponse(message="ok", code=200, data="")
+    logger.info("before_file:%s", file)
+
+    file_record = upload_file(file, _user.user_id, bucket)
+    logger.info("file_in_server:%s", file_record)
+
+    return SuccessResponse(message="ok", code=200, data=file_record)
