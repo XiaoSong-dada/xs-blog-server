@@ -40,10 +40,10 @@ def register_admin_user(user: UserCreate) -> None:
 
 
 def delete_user(username: str, admin_user) -> None:
-    if not admin_user["is_admin"]:
+    if not admin_user.is_admin:
         raise AppError("admin required", code=403)
 
-    if admin_user["username"] == username:
+    if admin_user.username == username:
         raise AppError("cannot delete yourself", code=400)
 
     with transaction() as conn:

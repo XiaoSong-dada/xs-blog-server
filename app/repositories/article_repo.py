@@ -3,7 +3,7 @@ from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.article_list import build_article_list_query
 import psycopg
 from app.repositories.base import execute
-from app.schemas.article import Article
+from app.schemas.article import Article, ArticleCreated
 from typing import Optional
 
 
@@ -31,3 +31,20 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     """
     data = fetch_one(conn, sql, (slug,))
     return Article(**data) if data else None
+
+
+def create_article(conn: psycopg.Connection, article: ArticleCreated) -> bool:
+    sql = """
+    INSERT INTO article (author_id, title, slug, content_md)
+    VALUES (%s, %s, %s, %s)
+    ON CONFLICT (slug) DO NOTHING
+    """
+    params = (
+        article.author_id,
+        article.title,
+        article.slug,
+        article.content_md,
+    )
+
+    affected = execute(conn, sql, params)
+    return affected == 1

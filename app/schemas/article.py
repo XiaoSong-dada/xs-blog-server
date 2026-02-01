@@ -23,3 +23,10 @@ class ArticleQuery(PageQuery):
     title: Optional[str] = None
     slug: Optional[str] = None
     content_md: Optional[str] = None
+
+
+class ArticleCreated(Base):
+    author_id: Optional[UUID] = None
+    title: str
+    slug: str
+    content_md: str
