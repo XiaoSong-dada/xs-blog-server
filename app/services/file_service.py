@@ -20,13 +20,20 @@ def generate_filename(original_filename: str) -> str:
 
 
 def upload_file(file: UploadFile, owner_user_id: str, bucket: str = "attachment"):
-
+    now = utc_now()
     validate_file_or_raise(file, bucket)
 
-    file_storage_path = os.path.join(
-        settings.FILE_STORAGE_PATH, generate_filename(file.filename)
+    file_path = os.path.join(
+        str(now.year),
+        f"{now.month:02d}",
+        f"{now.day:02d}",
+        generate_filename(file.filename),
     )
-    os.makedirs(settings.FILE_STORAGE_PATH, exist_ok=True)
+
+    file_storage_path = os.path.join(settings.FILE_STORAGE_PATH, file_path)
+
+    os.makedirs(os.path.dirname(file_storage_path), exist_ok=True)
+
     with open(file_storage_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
@@ -34,10 +41,10 @@ def upload_file(file: UploadFile, owner_user_id: str, bucket: str = "attachment"
         owner_user_id=owner_user_id,
         original_name=file.filename,
         bucket=bucket,
-        stored_path=file_storage_path,
+        stored_path="/" + file_path,
         content_type=file.content_type,
         size=get_uploadfile_size(file),
-        created_at=utc_now(),
+        created_at=now,
     )
 
     with transaction() as conn:
