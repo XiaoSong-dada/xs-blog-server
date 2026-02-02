@@ -36,17 +36,19 @@ def slug_search(slug: str):
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
-@router.post("", response_model=SuccessResponseBase)
+@router.post("", response_model=SuccessResponse)
 def create(acticle: ArticleCreated, _user: UserInDB = Depends(require_admin)):
     logger.info("acticle: %s", acticle)
     acticle.author_id = _user.user_id
 
-    ok = create_article(acticle)
-    if not ok:
+    article_id = create_article(acticle)
+    if not article_id:
         return ErrorResponse(
             message="新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+    return SuccessResponse(
+        message="ok", code=status.HTTP_200_OK, data=dict(article_id=article_id)
+    )
 
 
 @router.put("", response_model=SuccessResponseBase)
@@ -68,6 +70,6 @@ def delete(id: UUID, _user: UserInDB = Depends(require_admin)):
     ok = delete_acticle(id)
     if not ok:
         return ErrorResponse(
-            message="修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            message="删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)

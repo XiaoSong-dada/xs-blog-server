@@ -35,11 +35,12 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
 
 def create_article(conn: psycopg.Connection, article: ArticleCreated) -> bool:
     sql = """
-    INSERT INTO article (author_id, title, slug, content_md)
-    VALUES (%s, %s, %s, %s)
+    INSERT INTO article ( id, author_id, title, slug, content_md)
+    VALUES (%s, %s, %s, %s, %s)
     ON CONFLICT (slug) DO NOTHING
     """
     params = (
+        article.id,
         article.author_id,
         article.title,
         article.slug,

@@ -1,6 +1,6 @@
 from app.core.exceptions import AppError
 from app.db.transaction import transaction
-from uuid import UUID
+from uuid import UUID, uuid4
 from app.repositories.article_repo import (
     list_article,
     detail_article_by_slug,
@@ -47,9 +47,10 @@ def get_article_by_slug(slug: str):
     return article
 
 
-def create_article(article: ArticleCreated) -> bool:
+def create_article(article: ArticleCreated) -> str:
 
     with transaction() as conn:
+        article.id = uuid4()
         repeat = detail_article_by_slug(conn, article.slug)
         if repeat:
             raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
@@ -58,7 +59,7 @@ def create_article(article: ArticleCreated) -> bool:
         if not ok:
             raise AppError("新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    return True
+    return article.id
 
 
 def update_article(article: ArticleUpdate) -> bool:

@@ -26,6 +26,7 @@ class ArticleQuery(PageQuery):
 
 
 class ArticleCreated(Base):
+    id: Optional[UUID] = None
     author_id: Optional[UUID] = None
     title: str
     slug: str
