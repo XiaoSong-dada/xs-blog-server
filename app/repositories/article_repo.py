@@ -3,8 +3,15 @@ from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.article_list import build_article_list_query
 import psycopg
 from app.repositories.base import execute
-from app.schemas.article import Article, ArticleCreated, ArticleUpdate, ArticleDelete
+from app.schemas.article import (
+    Article,
+    ArticleCreated,
+    ArticleUpdate,
+    ArticleDelete,
+    ArticlePublish,
+)
 from typing import Optional
+from uuid import UUID
 
 
 def list_article(
@@ -78,11 +85,41 @@ def exists_slug_except_id(conn, slug: str, article_id: str) -> bool:
     return fetch_one(conn, sql, (slug, article_id)) is not None
 
 
+def exists_id(conn, article_id: str) -> bool:
+    sql = """
+    SELECT 1
+    FROM article
+    WHERE id = %s
+    LIMIT 1
+    """
+    return fetch_one(conn, sql, (article_id,)) is not None
+
+
+def is_delete(conn, article_id: UUID) -> bool:
+    sql = """
+    SELECT 1
+    FROM article
+    WHERE id = %s and deleted_at IS NULL
+    LIMIT 1
+    """
+    return fetch_one(conn, sql, (article_id,)) is not None
+
+
 def delete_article(conn: psycopg.Connection, article: ArticleDelete) -> bool:
     sql = """
             UPDATE article SET deleted_at = %s WHERE id = %s;
         """
     params = (article.deleted_at, article.id)
+
+    affected = execute(conn, sql, params)
+    return affected == 1
+
+
+def publish_article(conn: psycopg.Connection, article: ArticlePublish) -> bool:
+    sql = """
+            UPDATE article SET published_at = %s WHERE id = %s;
+        """
+    params = (article.published_at, article.id)
 
     affected = execute(conn, sql, params)
     return affected == 1

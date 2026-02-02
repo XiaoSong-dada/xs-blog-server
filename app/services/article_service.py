@@ -8,12 +8,15 @@ from app.repositories.article_repo import (
     update_article as update,
     exists_slug_except_id,
     delete_article as delete,
+    is_delete,
+    publish_article as publish,
 )
 from app.schemas.article import (
     ArticleQuery,
     ArticleCreated,
     ArticleUpdate,
     ArticleDelete,
+    ArticlePublish,
 )
 from fastapi import status
 from app.utils.datetime_utils import utc_now
@@ -79,11 +82,29 @@ def update_article(article: ArticleUpdate) -> bool:
 def delete_acticle(id: UUID) -> bool:
 
     with transaction() as conn:
-        # slug 修改查重
         article = ArticleDelete(id=id, deleted_at=utc_now())
 
         ok = delete(conn, article)
         if not ok:
             raise AppError("删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return True
+
+
+def publish_acticle(id: UUID) -> bool:
+
+    with transaction() as conn:
+        exists_article = is_delete(conn, id)
+        if not exists_article:
+            raise AppError("文章未找到", code=status.HTTP_404_NOT_FOUND)
+
+        article = ArticlePublish(
+            id=id,
+            published_at=utc_now(),
+        )
+
+        ok = publish(conn, article)
+        if not ok:
+            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     return True

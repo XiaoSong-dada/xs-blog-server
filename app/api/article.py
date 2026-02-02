@@ -15,6 +15,7 @@ from app.services.article_service import (
     create_article,
     update_article,
     delete_acticle,
+    publish_acticle,
 )
 from app.security.permissions import require_admin
 
@@ -47,7 +48,7 @@ def create(acticle: ArticleCreated, _user: UserInDB = Depends(require_admin)):
             message="新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     return SuccessResponse(
-        message="ok", code=status.HTTP_200_OK, data=dict(article_id=article_id)
+        message="ok", code=status.HTTP_201_CREATED, data=dict(article_id=article_id)
     )
 
 
@@ -71,5 +72,17 @@ def delete(id: UUID, _user: UserInDB = Depends(require_admin)):
     if not ok:
         return ErrorResponse(
             message="删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+
+
+@router.post("/{id}", response_model=SuccessResponseBase)
+def publish(id: UUID, _user: UserInDB = Depends(require_admin)):
+    logger.info("publish acticle_id: %s", id)
+
+    ok = publish_acticle(id)
+    if not ok:
+        return ErrorResponse(
+            message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)

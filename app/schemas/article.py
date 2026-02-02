@@ -43,3 +43,8 @@ class ArticleUpdate(Base):
 class ArticleDelete(Base):
     id: UUID
     deleted_at: datetime
+
+
+class ArticlePublish(Base):
+    id: UUID
+    published_at: datetime
