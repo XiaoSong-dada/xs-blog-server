@@ -3,6 +3,7 @@ from app.db.transaction import transaction
 from uuid import UUID, uuid4
 from app.repositories.article_repo import (
     list_article,
+    detail_article_by_id,
     detail_article_by_slug,
     create_article as create,
     update_article as update,
@@ -44,6 +45,15 @@ def get_article_page(search: ArticleQuery | None = None):
 def get_article_by_slug(slug: str):
     with transaction() as conn:
         article = detail_article_by_slug(conn, slug)
+        if not article:
+            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
+
+    return article
+
+
+def get_article_by_id(id: str):
+    with transaction() as conn:
+        article = detail_article_by_id(conn, id)
         if not article:
             raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
 

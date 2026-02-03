@@ -40,6 +40,17 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     return Article(**data) if data else None
 
 
+def detail_article_by_id(conn: psycopg.Connection, id: str) -> Article:
+    sql = """
+    SELECT id, author_id, title, slug, content_md,
+    created_at, updated_at, published_at, deleted_at,view_count  
+    FROM article
+    WHERE id = %s
+    """
+    data = fetch_one(conn, sql, (id,))
+    return Article(**data) if data else None
+
+
 def create_article(conn: psycopg.Connection, article: ArticleCreated) -> bool:
     sql = """
     INSERT INTO article ( id, author_id, title, slug, content_md)

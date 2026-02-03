@@ -16,6 +16,7 @@ from app.services.article_service import (
     update_article,
     delete_acticle,
     publish_acticle,
+    get_article_by_id,
 )
 from app.security.permissions import require_admin
 
@@ -34,6 +35,13 @@ def list(query: ArticleQuery = Depends()):
 def slug_search(slug: str):
     logger.info("query: %s", slug)
     article = get_article_by_slug(slug)
+    return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
+
+
+@router.get("/id/{id}", response_model=SuccessResponse)
+def slug_search_id(id: str):
+    logger.info("query: %s", id)
+    article = get_article_by_id(id)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
