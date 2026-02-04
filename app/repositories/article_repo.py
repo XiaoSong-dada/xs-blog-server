@@ -163,3 +163,16 @@ def publish_article(conn: psycopg.Connection, article: ArticlePublish) -> bool:
 
     affected = execute(conn, sql, params)
     return affected == 1
+
+
+def add_view(conn: psycopg.Connection, id: str) -> bool:
+    sql = """
+        UPDATE article
+        SET view_count = view_count + 1
+        WHERE id = %s
+        RETURNING id;
+    """
+    params = (id,)
+
+    affected = execute(conn, sql, params)
+    return affected == 1

@@ -13,6 +13,7 @@ from app.repositories.article_repo import (
     delete_article as delete,
     is_delete,
     publish_article as publish,
+    add_view,
 )
 from app.schemas.article import (
     ArticleQuery,
@@ -147,4 +148,12 @@ def publish_acticle(id: UUID) -> bool:
         if not ok:
             raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    return True
+
+
+def add_publish_view(id: UUID) -> bool:
+    with transaction() as conn:
+        ok = add_view(conn, id)
+    if not ok:
+        raise AppError("新增浏览量失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return True
