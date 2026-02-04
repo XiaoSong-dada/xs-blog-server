@@ -5,6 +5,8 @@ from app.repositories.article_repo import (
     list_article,
     detail_article_by_id,
     detail_article_by_slug,
+    detail_publish_article_by_slug,
+    list_publish_article,
     create_article as create,
     update_article as update,
     exists_slug_except_id,
@@ -42,9 +44,37 @@ def get_article_page(search: ArticleQuery | None = None):
     }
 
 
+def get_publish_article_page(search: ArticleQuery | None = None):
+    search = search or ArticleQuery()
+
+    with transaction() as conn:
+        article, total = list_publish_article(
+            conn,
+            limit=search.limit,
+            offset=search.offset,
+            search=search,
+        )
+
+    return {
+        "data": [a.model_dump() for a in article],
+        "total": total,
+        "limit": search.limit,
+        "offset": search.offset,
+    }
+
+
 def get_article_by_slug(slug: str):
     with transaction() as conn:
         article = detail_article_by_slug(conn, slug)
+        if not article:
+            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
+
+    return article
+
+
+def get_publish_article_by_slug(slug: str):
+    with transaction() as conn:
+        article = detail_publish_article_by_slug(conn, slug)
         if not article:
             raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
 

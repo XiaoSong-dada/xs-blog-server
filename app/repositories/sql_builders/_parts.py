@@ -46,6 +46,10 @@ class QueryParts:
         if column:
             self.conditions.append(f"{column} IS NULL")
 
+    def where_is_not_null(self, column: str) -> None:
+        if column:
+            self.conditions.append(f"{column} IS NOT NULL")
+
     def where_sql(self) -> str:
         """返回拼好的 WHERE ...（无条件则返回空字符串）"""
         return (" WHERE " + " AND ".join(self.conditions)) if self.conditions else ""

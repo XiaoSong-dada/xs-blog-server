@@ -32,14 +32,14 @@ def list(query: ArticleQuery = Depends()):
 
 
 @router.get("/{slug}", response_model=SuccessResponse)
-def slug_search(slug: str):
+def slug_search(slug: str, _user: UserInDB = Depends(require_admin)):
     logger.info("query: %s", slug)
     article = get_article_by_slug(slug)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
 @router.get("/id/{id}", response_model=SuccessResponse)
-def slug_search_id(id: str):
+def slug_search_id(id: str, _user: UserInDB = Depends(require_admin)):
     logger.info("query: %s", id)
     article = get_article_by_id(id)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
