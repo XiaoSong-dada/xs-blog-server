@@ -102,3 +102,91 @@ CREATE INDEX idx_files_created_at ON public.files (created_at DESC);
 CREATE INDEX idx_files_not_deleted ON public.files (id)
 WHERE
     deleted_at IS NULL;
+
+-- =========================
+-- 点赞表：article_like
+-- =========================
+CREATE TABLE
+    IF NOT EXISTS public.article_like (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+        article_id uuid NOT NULL,
+        user_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now (),
+        deleted_at timestamptz NULL,
+        CONSTRAINT uq_article_like UNIQUE (article_id, user_id),
+        CONSTRAINT fk_article_like_article FOREIGN KEY (article_id) REFERENCES public.article (id) ON DELETE CASCADE,
+        CONSTRAINT fk_article_like_user FOREIGN KEY (user_id) REFERENCES public.users (user_id) ON DELETE CASCADE
+    );
+
+-- 常用查询索引（只查未取消的）
+CREATE INDEX IF NOT EXISTS idx_article_like_article_active ON public.article_like (article_id)
+WHERE
+    deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_article_like_user_created_active ON public.article_like (user_id, created_at DESC)
+WHERE
+    deleted_at IS NULL;
+
+-- =========================
+-- 收藏表：article_bookmark
+-- =========================
+CREATE TABLE
+    IF NOT EXISTS public.article_bookmark (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+        article_id uuid NOT NULL,
+        user_id uuid NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now (),
+        deleted_at timestamptz NULL,
+        CONSTRAINT uq_article_bookmark UNIQUE (article_id, user_id),
+        CONSTRAINT fk_article_bookmark_article FOREIGN KEY (article_id) REFERENCES public.article (id) ON DELETE CASCADE,
+        CONSTRAINT fk_article_bookmark_user FOREIGN KEY (user_id) REFERENCES public.users (user_id) ON DELETE CASCADE
+    );
+
+CREATE INDEX IF NOT EXISTS idx_article_bookmark_article_active ON public.article_bookmark (article_id)
+WHERE
+    deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_article_bookmark_user_created_active ON public.article_bookmark (user_id, created_at DESC)
+WHERE
+    deleted_at IS NULL;
+
+-- =========================
+-- 评论表：comment
+-- 支持：主评论 + 多级回复（parent_id / root_id）
+-- =========================
+CREATE TABLE
+    IF NOT EXISTS public.comment (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+        article_id uuid NOT NULL,
+        user_id uuid NOT NULL,
+        content text NOT NULL,
+        -- 回复结构：
+        parent_id uuid NULL, -- 直接父评论（主评论为 NULL）
+        root_id uuid NOT NULL, -- 根评论（主评论的 root_id = 自己的 id）
+        reply_to_user_id uuid NULL, -- UI展示“回复@谁”（可选）
+        created_at timestamptz NOT NULL DEFAULT now (),
+        updated_at timestamptz NOT NULL DEFAULT now (),
+        deleted_at timestamptz NULL,
+        CONSTRAINT fk_comment_article FOREIGN KEY (article_id) REFERENCES public.article (id) ON DELETE CASCADE,
+        CONSTRAINT fk_comment_user FOREIGN KEY (user_id) REFERENCES public.users (user_id) ON DELETE CASCADE,
+        CONSTRAINT fk_comment_parent FOREIGN KEY (parent_id) REFERENCES public.comment (id) ON DELETE CASCADE,
+        CONSTRAINT fk_comment_reply_to_user FOREIGN KEY (reply_to_user_id) REFERENCES public.users (user_id) ON DELETE SET NULL,
+        CONSTRAINT fk_comment_root FOREIGN KEY (root_id) REFERENCES public.comment (id) ON DELETE CASCADE
+    );
+
+-- 常用索引：按文章拉评论、按root拉子评论、按用户查历史（只查未删除）
+CREATE INDEX IF NOT EXISTS idx_comment_article_created_active ON public.comment (article_id, created_at DESC)
+WHERE
+    deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_comment_root_created_active ON public.comment (root_id, created_at ASC)
+WHERE
+    deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_comment_user_created_active ON public.comment (user_id, created_at DESC)
+WHERE
+    deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_comment_parent_active ON public.comment (parent_id)
+WHERE
+    deleted_at IS NULL;
