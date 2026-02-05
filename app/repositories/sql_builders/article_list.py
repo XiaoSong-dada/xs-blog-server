@@ -62,7 +62,7 @@ def build_publish_article_list_query(
 
 
 def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
-    kw = (search.query or "").strip()
+    kw = (search.kw or "").strip()
 
     # 没关键词：你可以选择返回空，或者退化成普通列表（我建议返回空更清晰）
     if not kw:
@@ -93,7 +93,7 @@ def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
                 'chinese_zh',
                 coalesce(a.content_md,''),
                 q.query,
-                'MaxWords=30, MinWords=10'
+                'MaxWords=30, MinWords=10, StartSel=[[[, StopSel=]]]'
             ) AS snippet,
             (to_tsvector('chinese_zh', coalesce(a.title,'')) @@ q.query) AS hit_title,
             (to_tsvector('chinese_zh', coalesce(a.content_md,'')) @@ q.query) AS hit_content

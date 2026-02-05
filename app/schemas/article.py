@@ -51,7 +51,7 @@ class ArticlePublish(Base):
 
 
 class ArticleSearchQuery(PageQuery):
-    query: Optional[str] = None
+    kw: Optional[str] = None
 
 
 # a.id, a.slug, a.title, a.published_at, a.view_count
