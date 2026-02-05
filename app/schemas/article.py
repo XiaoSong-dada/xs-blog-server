@@ -48,3 +48,16 @@ class ArticleDelete(Base):
 class ArticlePublish(Base):
     id: UUID
     published_at: datetime
+
+
+class ArticleSearchQuery(PageQuery):
+    query: Optional[str] = None
+
+
+# a.id, a.slug, a.title, a.published_at, a.view_count
+class ArticleSearchOut(Base):
+    id: UUID
+    slug: str
+    title: str
+    published_at: Optional[datetime] = None
+    view_count: int

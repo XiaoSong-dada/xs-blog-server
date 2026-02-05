@@ -1,8 +1,13 @@
-from app.schemas.article import Article, ArticleQuery
+from app.schemas.article import (
+    Article,
+    ArticleQuery,
+    ArticleSearchQuery,
+)
 from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.article_list import (
     build_article_list_query,
     build_publish_article_list_query,
+    build_search_list_query,
 )
 import psycopg
 from app.repositories.base import execute
@@ -176,3 +181,15 @@ def add_view(conn: psycopg.Connection, id: str) -> bool:
 
     affected = execute(conn, sql, params)
     return affected == 1
+
+
+def search_article(conn: psycopg.Connection, query: ArticleSearchQuery):
+
+    built = build_search_list_query(query)
+
+    rows = fetch_page(
+        conn, built.data_sql, built.params, limit=query.limit, offset=query.offset
+    )
+    total = fetch_count(conn, built.count_sql, built.params)
+
+    return [Article(**row) for row in rows], total

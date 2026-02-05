@@ -14,6 +14,7 @@ from app.repositories.article_repo import (
     is_delete,
     publish_article as publish,
     add_view,
+    search_article,
 )
 from app.schemas.article import (
     ArticleQuery,
@@ -21,6 +22,7 @@ from app.schemas.article import (
     ArticleUpdate,
     ArticleDelete,
     ArticlePublish,
+    ArticleSearchQuery,
 )
 from fastapi import status
 from app.utils.datetime_utils import utc_now
@@ -154,6 +156,21 @@ def publish_acticle(id: UUID) -> bool:
 def add_publish_view(id: UUID) -> bool:
     with transaction() as conn:
         ok = add_view(conn, id)
-    if not ok:
-        raise AppError("新增浏览量失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if not ok:
+            raise AppError("新增浏览量失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     return True
+
+
+def search_publish_article(query: ArticleSearchQuery) -> dict:
+    with transaction() as conn:
+        article, total = search_article(
+            conn,
+            query,
+        )
+
+    return {
+        "data": [a.model_dump() for a in article],
+        "total": total,
+        "limit": query.limit,
+        "offset": query.offset,
+    }

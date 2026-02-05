@@ -1,6 +1,9 @@
--- 创建用户表
+-- 引入插件
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+CREATE EXTENSION IF NOT EXISTS zhparser;
+
+-- 创建用户表
 CREATE TABLE
     IF NOT EXISTS public.users (
         user_id uuid DEFAULT gen_random_uuid () NOT NULL,

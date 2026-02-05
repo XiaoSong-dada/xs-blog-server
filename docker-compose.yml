@@ -14,7 +14,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   db:
-    image: postgres:16
+    image: zhparser/zhparser:bullseye-16
     container_name: icu.xiaosong.blog.service.db
     env_file: ./compose/.local.env
     ports:
