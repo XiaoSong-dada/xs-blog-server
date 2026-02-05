@@ -118,4 +118,4 @@ def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
     """
 
     # 注意：kw 要传两次，因为两条 SQL 各用一次
-    return BuiltQuery(data_sql=data_sql, count_sql=count_sql, params=(kw, kw))
+    return BuiltQuery(data_sql=data_sql, count_sql=count_sql, params=(kw,))

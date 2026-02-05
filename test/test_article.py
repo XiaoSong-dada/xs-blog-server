@@ -24,6 +24,11 @@ def test_get_article_detail_by_slug_db_has():
     assert r.status_code == 200
 
 
+def test_publish_search_list_ok():
+    r = client.get("/api/publish/search/list", params={"query": "容", "limit": 10, "offset": 0})
+    assert r.status_code == 200
+
+
 @pytest.fixture(scope="module")
 def user_token_and_username():
     r = client.post(

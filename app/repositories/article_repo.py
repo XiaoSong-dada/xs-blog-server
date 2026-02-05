@@ -2,6 +2,7 @@ from app.schemas.article import (
     Article,
     ArticleQuery,
     ArticleSearchQuery,
+    ArticleSearchOut,
 )
 from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.article_list import (
@@ -183,7 +184,7 @@ def add_view(conn: psycopg.Connection, id: str) -> bool:
     return affected == 1
 
 
-def search_article(conn: psycopg.Connection, query: ArticleSearchQuery):
+def search_article(conn: psycopg.Connection, query: ArticleSearchQuery) -> tuple[list[ArticleSearchOut], int]:
 
     built = build_search_list_query(query)
 
@@ -192,4 +193,4 @@ def search_article(conn: psycopg.Connection, query: ArticleSearchQuery):
     )
     total = fetch_count(conn, built.count_sql, built.params)
 
-    return [Article(**row) for row in rows], total
+    return [ArticleSearchOut(**row) for row in rows], total

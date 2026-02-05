@@ -61,3 +61,7 @@ class ArticleSearchOut(Base):
     title: str
     published_at: Optional[datetime] = None
     view_count: int
+    rank: Optional[float] = None
+    snippet: Optional[str] = None
+    hit_title: Optional[bool] = None
+    hit_content: Optional[bool] = None
