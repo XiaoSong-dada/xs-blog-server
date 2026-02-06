@@ -7,7 +7,7 @@ import logging
 from app.core.exceptions import AppError
 from app.repositories.file_ropo import create_file
 from app.db.transaction import transaction
-from app.schemas.file import File, FileOut
+from app.schemas.file import File, FileOut, Session
 from app.utils.datetime_utils import utc_now
 
 BYTES_PER_MB = 1024 * 1024
@@ -103,3 +103,18 @@ def validate_file_or_raise(file: UploadFile, bucket: str | None) -> None:
         raise AppError(
             "文件类型与预期不符", code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
         )
+
+
+def create_session() -> Session:
+    now = utc_now()
+    id = uuid.uuid4()
+    base = "/api/file/session"
+    session = Session(
+        id=id,
+        expires_at=now,
+        upload_url=f"{base}/{id}/upload",
+        commit_url=f"{base}/{id}/commit",
+        status="created",
+    )
+
+    return session

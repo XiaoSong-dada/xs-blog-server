@@ -21,3 +21,11 @@ class File(Base):
 class FileOut(Base):
     original_name: str
     stored_path: str
+
+
+class Session(Base):
+    id: UUID = Field(default_factory=uuid4)
+    status: str
+    upload_url: str
+    commit_url: str
+    expires_at: datetime
