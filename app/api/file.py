@@ -10,7 +10,12 @@ from fastapi import (
 )
 from app.security.permissions import require_login, require_admin
 from app.schemas.base import SuccessResponse, ErrorResponse
-from app.services.file_service import upload_file, create_session, upload_file_session
+from app.services.file_service import (
+    upload_file,
+    create_session,
+    upload_file_session,
+    commit_file_to_db,
+)
 from app.services.upload_session_service import UploadSessionService
 from typing import List
 from app.schemas.file import UploadGroup
@@ -64,9 +69,10 @@ async def upload_session(
 
 
 @router.post("/{session_id}/commit", response_model=SuccessResponse)
-def commit_session(
+async def commit_session(
+    session_id=str,
     _user=Depends(require_admin),
 ):
-    session = create_session()
-    logger.info("session:%s", session)
-    return SuccessResponse(message="ok", code=200, data=session)
+    result = await commit_file_to_db(session_id, _user.user_id)
+    logger.info("session:%s", result)
+    return SuccessResponse(message="ok", code=200, data=result)

@@ -14,14 +14,26 @@ from app.schemas.file import (
     UploadGroup,
     UploadError,
     UploadResult,
+    CommitResult,
 )
 from app.utils.datetime_utils import utc_now
 from app.services.upload_session_service import UploadSessionService
 from typing import List, Iterable
-
+from app.utils.file_utils import (
+    scan_md_files,
+    scan_images,
+    scan_md_files,
+    read_md_images_map,
+    replace_img_url,
+)
+from pathlib import Path
+from app.schemas.article import Article
+from uuid import UUID
+from app.repositories.article_repo import create_article
 
 BYTES_PER_MB = 1024 * 1024
 logger = logging.getLogger(__name__)
+IMPORT_MARKDOWN_TYPE = "article_markdown"
 
 
 def generate_filename(original_filename: str) -> str:
@@ -197,5 +209,82 @@ async def upload_file_session(id: str, files: List[FastApiFile]) -> UploadResult
     if session["status"] != "OPEN":
         raise AppError("本次对话已关闭", code=status.HTTP_409_CONFLICT)
 
-    result = await upload_files_to_store(files, "article_markdown", id)
+    result = await upload_files_to_store(files, IMPORT_MARKDOWN_TYPE, id)
     return result
+
+
+async def commit_file_to_db(session_id: str, user_id: UUID):
+    # 提交临时区的文件
+    session = await UploadSessionService.get(session_id)
+    if not session:
+        raise AppError("未找到对话", code=status.HTTP_404_NOT_FOUND)
+
+    # 用原子更新来“抢提交权”
+    ok = await UploadSessionService.update_to_committing(session_id)
+    if not ok:
+        # 说明不是 OPEN（重复提交 / 已关闭 / 已提交）
+        raise AppError("不可重复提交或会话已关闭", code=status.HTTP_409_CONFLICT)
+
+    base_dir = os.path.join(
+        settings.FILE_STORAGE_PATH,
+        "store",
+        IMPORT_MARKDOWN_TYPE,
+        session_id,
+    )
+    now = utc_now()
+    # 查看session中是否有图片
+    md_img_mapping = read_md_images_map(base_dir)
+
+    # 是否需要替换
+    is_need_improt_flag = len(md_img_mapping) == 0
+
+    md_files = scan_md_files(base_dir)
+
+    result: list[CommitResult] = []
+    success: list[str] = []
+    errors: list[UploadError] = []
+
+    # 替换图片文件
+    if is_need_improt_flag:
+        for md in md_img_mapping.keys():
+            # 将文件上传至持久化区
+            file = Path(md)
+            old_and_new_img_mapping = {}
+            for img in md_img_mapping[md]:
+                # upload_file() 就这个函数我以为能共用
+                file_path = os.path.join(
+                    str(now.year),
+                    f"{now.month:02d}",
+                    f"{now.day:02d}",
+                    generate_filename(file.name),
+                )
+
+                file_storage_path = os.path.join(settings.FILE_STORAGE_PATH, file_path)
+
+                os.makedirs(os.path.dirname(file_storage_path), exist_ok=True)
+
+                with open(file_storage_path, "wb") as f:
+                    shutil.copyfileobj(file, f)
+
+                old_and_new_img_mapping[img] = file_storage_path
+            # 执行替换
+            replace_img_url(file, old_and_new_img_mapping)
+
+    for file_path in md_files:
+        file = Path(file_path)
+
+        if is_need_improt_flag:
+            # 需要进行替换
+
+            return None
+
+        # 创建
+        article = Article(author_id=user_id, title=file.stem)
+
+        with transaction() as conn:
+            ok = create_article(conn, article)
+            if not ok:
+                result.append(ok)
+            else:
+                result.append("")
+    return None

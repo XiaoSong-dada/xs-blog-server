@@ -47,3 +47,9 @@ class UploadError:
 class UploadResult:
     uploaded: List[str]
     errors: List[UploadError]
+
+
+@dataclass
+class CommitResult:
+    sueccess: List[str]
+    errors: List[UploadError]
