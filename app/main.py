@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import psycopg
@@ -10,6 +11,7 @@ from app.schemas.base import ErrorResponse
 from fastapi.responses import JSONResponse
 import logging
 from fastapi.staticfiles import StaticFiles
+from app.core.redis import init_redis, close_redis
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,7 +19,16 @@ logging.basicConfig(
 )
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_redis()
+    try:
+        yield
+    finally:
+        await close_redis()
+
+
+app = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=settings.FILE_STORAGE_PATH), name="static")
 
 app.include_router(api_router, prefix="/api")

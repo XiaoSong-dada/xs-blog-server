@@ -24,4 +24,5 @@ Thumbs.db
 *.sln
 *.sw?
 
+local.redis.conf
 storage

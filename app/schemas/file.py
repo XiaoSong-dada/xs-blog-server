@@ -1,8 +1,10 @@
 from app.schemas.base import Base
 from uuid import UUID, uuid4
-from typing import Optional
+from typing import Optional, List
 from pydantic import Field
 from datetime import datetime
+from fastapi import UploadFile, File as UploadField
+from dataclasses import dataclass
 
 
 class File(Base):
@@ -29,3 +31,19 @@ class Session(Base):
     upload_url: str
     commit_url: str
     expires_at: datetime
+
+
+class UploadGroup(Base):
+    file_array: List[UploadFile] = UploadField(...)
+
+
+@dataclass
+class UploadError:
+    file_name: str
+    error: str
+
+
+@dataclass
+class UploadResult:
+    uploaded: List[str]
+    errors: List[UploadError]

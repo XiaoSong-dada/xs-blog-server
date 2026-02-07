@@ -1,4 +1,4 @@
-from fastapi import UploadFile, status
+from fastapi import UploadFile, status, File as FastApiFile
 from app.core.config import settings
 import os
 import shutil
@@ -7,8 +7,18 @@ import logging
 from app.core.exceptions import AppError
 from app.repositories.file_ropo import create_file
 from app.db.transaction import transaction
-from app.schemas.file import File, FileOut, Session
+from app.schemas.file import (
+    File,
+    FileOut,
+    Session,
+    UploadGroup,
+    UploadError,
+    UploadResult,
+)
 from app.utils.datetime_utils import utc_now
+from app.services.upload_session_service import UploadSessionService
+from typing import List, Iterable
+
 
 BYTES_PER_MB = 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -71,6 +81,17 @@ bucket_dict = {
     },
     "markdown": {"max_bytes": 5 * BYTES_PER_MB, "types": ("text/markdown",)},
     "attachment": {"max_bytes": 20 * BYTES_PER_MB, "types": ("text/markdown",)},
+    "article_markdown": {
+        "max_bytes": 20 * BYTES_PER_MB,
+        "types": (
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "text/markdown",
+            "text/plain",
+            "application/octet-stream",
+        ),
+    },
 }
 
 
@@ -118,3 +139,63 @@ def create_session() -> Session:
     )
 
     return session
+
+
+async def upload_files_to_store(
+    files: Iterable[UploadFile],
+    bucket: str,
+    session_id: str,
+) -> UploadResult:
+    cfg = get_bucket_cfg(bucket)
+    errors: list[UploadError] = []
+    uploaded: list[str] = []
+
+    base_dir = os.path.join(
+        settings.FILE_STORAGE_PATH,
+        "store",
+        bucket,
+        session_id,
+    )
+    os.makedirs(base_dir, exist_ok=True)
+
+    for file in files:
+        size = get_uploadfile_size(file)
+        if size > cfg["max_bytes"]:
+            errors.append(UploadError(file_name=file.filename, error="文件超限"))
+            continue
+
+        if file.content_type not in cfg["types"]:
+            errors.append(UploadError(file_name=file.filename, error="文件类型不匹配"))
+            continue
+        safe_name = os.path.basename(file.filename)
+        save_path = os.path.join(base_dir, safe_name)
+
+        try:
+            with open(save_path, "wb") as f:
+                while True:
+                    chunk = await file.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
+            await file.seek(0)
+            uploaded.append(file.filename)
+
+        except Exception as e:
+            errors.append(UploadError(file_name=file.filename, error=str(e)))
+
+    return UploadResult(uploaded=uploaded, errors=errors)
+
+
+async def upload_file_session(id: str, files: List[FastApiFile]) -> UploadResult:
+    # 判断当前的session是否开启
+    session = await UploadSessionService.get(id)
+
+    if not session:
+        raise AppError("未找到对话", code=status.HTTP_404_NOT_FOUND)
+
+    if session["status"] != "OPEN":
+        raise AppError("本次对话已关闭", code=status.HTTP_409_CONFLICT)
+
+    result = await upload_files_to_store(files, "article_markdown", id)
+    return result

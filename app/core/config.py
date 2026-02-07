@@ -4,6 +4,11 @@ import os
 class Settings:
     DATABASE_URL = os.getenv("DATABASE_URL")
     REDIS_URL = os.getenv("REDIS_URL")
+    REDIS_PORT = os.getenv("REDIS_PORT")
+    REDIS_DB = os.getenv("REDIS_DB")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+    REDIS_PREFIX = os.getenv("REDIS_PREFIX")
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     ALGORITHM: str = os.getenv("ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
