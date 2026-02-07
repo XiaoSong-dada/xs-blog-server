@@ -51,5 +51,5 @@ class UploadResult:
 
 @dataclass
 class CommitResult:
-    sueccess: List[str]
+    success: List[str]
     errors: List[UploadError]

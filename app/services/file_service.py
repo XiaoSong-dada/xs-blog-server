@@ -30,10 +30,19 @@ from pathlib import Path
 from app.schemas.article import Article
 from uuid import UUID
 from app.repositories.article_repo import create_article
+from urllib.parse import urlparse
+from app.utils.pinyin_utils import filename_to_slug
 
 BYTES_PER_MB = 1024 * 1024
 logger = logging.getLogger(__name__)
 IMPORT_MARKDOWN_TYPE = "article_markdown"
+
+
+def is_remote_url(s: str) -> bool:
+    try:
+        return urlparse(s).scheme in {"http", "https"}
+    except Exception:
+        return False
 
 
 def generate_filename(original_filename: str) -> str:
@@ -236,55 +245,87 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
     md_img_mapping = read_md_images_map(base_dir)
 
     # 是否需要替换
-    is_need_improt_flag = len(md_img_mapping) == 0
+
+    need_replace = len(md_img_mapping) > 0
 
     md_files = scan_md_files(base_dir)
 
-    result: list[CommitResult] = []
-    success: list[str] = []
-    errors: list[UploadError] = []
+    result = CommitResult(success=[], errors=[])
 
-    # 替换图片文件
-    if is_need_improt_flag:
-        for md in md_img_mapping.keys():
-            # 将文件上传至持久化区
-            file = Path(md)
-            old_and_new_img_mapping = {}
-            for img in md_img_mapping[md]:
-                # upload_file() 就这个函数我以为能共用
+    if need_replace:
+        for md_path_str, img_list in md_img_mapping.items():
+            md_path = Path(md_path_str)
+            old_and_new_img_mapping: dict[str, str] = {}
+
+            for img in img_list:
+                # 1) 跳过网络图片（如果你希望也处理网络图片，那是另一个流程：先下载再存）
+                if is_remote_url(img):
+                    continue
+
+                # 2) 把 markdown 里的图片路径解析成真实文件路径（相对 md 所在目录）
+                src_img_path = (md_path.parent / img).resolve()
+
+                if not src_img_path.exists() or not src_img_path.is_file():
+                    # 这里你可以改成 errors.append(...)
+                    continue
+
+                # 3) 用图片文件名生成新的随机文件名（保留图片扩展名）
                 file_path = os.path.join(
                     str(now.year),
                     f"{now.month:02d}",
                     f"{now.day:02d}",
-                    generate_filename(file.name),
+                    generate_filename(src_img_path.name),
                 )
 
-                file_storage_path = os.path.join(settings.FILE_STORAGE_PATH, file_path)
+                dst_img_path = Path(settings.FILE_STORAGE_PATH) / file_path
+                dst_img_path.parent.mkdir(parents=True, exist_ok=True)
 
-                os.makedirs(os.path.dirname(file_storage_path), exist_ok=True)
+                # 4) 复制图片到公共区（copy2 会保留时间戳等元信息；不需要可用 copyfile）
+                shutil.copy2(src_img_path, dst_img_path)
 
-                with open(file_storage_path, "wb") as f:
-                    shutil.copyfileobj(file, f)
+                # 5) 构建替换映射：旧路径 -> 新路径（这里建议存“可访问的 URL/相对路径”，别存磁盘绝对路径）
+                #    例如：/static/<file_path>  或 你自己的 CDN URL
+                new_url = f"/static/{file_path.replace(os.sep, '/')}"
+                old_and_new_img_mapping[img] = new_url
 
-                old_and_new_img_mapping[img] = file_storage_path
-            # 执行替换
-            replace_img_url(file, old_and_new_img_mapping)
+            # 6) 替换 md 中的图片链接（只有有映射才替换）
+            if old_and_new_img_mapping:
+                replace_img_url(md_path, old_and_new_img_mapping)
 
     for file_path in md_files:
         file = Path(file_path)
 
-        if is_need_improt_flag:
-            # 需要进行替换
+        try:
+            # 1) title = 文件名（无后缀）
+            title = file.stem
 
-            return None
+            # 2) slug = 文件名转拼音（中文->pinyin，用 '-'）
+            slug = filename_to_slug(title, split_english_letters=False)
 
-        # 创建
-        article = Article(author_id=user_id, title=file.stem)
+            # 3) content_md = 文件内容
+            content_md = file.read_text(encoding="utf-8", errors="replace")
 
-        with transaction() as conn:
-            ok = create_article(conn, article)
-            if not ok:
-                result.append(ok)
+            # 4) 创建 Article
+            article = Article(
+                author_id=user_id,
+                title=title,
+                slug=slug,
+                content_md=content_md,
+                view_count=0,
+                created_at=now,
+            )
+
+            with transaction() as conn:
+                ok = create_article(conn, article)
+
+            if ok:
+                result.success.append(str(file))
             else:
-                result.append("")
-    return None
+                result.errors.append(
+                    UploadError(file_name=str(file), error="create_article 返回 False")
+                )
+
+        except Exception as e:
+            result.errors.append(UploadError(file_name=str(file), error=str(e)))
+
+    return result

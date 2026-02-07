@@ -7,3 +7,4 @@ PyJWT
 python-multipart
 pytest
 httpx
+pypinyin

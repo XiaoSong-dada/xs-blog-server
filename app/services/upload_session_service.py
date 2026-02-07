@@ -53,7 +53,7 @@ class UploadSessionService:
     async def update_to_committing(session_id: str) -> bool:
         redis: Redis = get_redis()  # 你自己的 redis 连接
 
-        key = f"{UploadSessionService.SESSION_KEY_PREFIX}{session_id}"
+        key = key_upload_session(session_id)
 
         lua = """
         local status = redis.call("HGET", KEYS[1], "status")
@@ -64,14 +64,8 @@ class UploadSessionService:
         return 1
         """
 
-        result = await redis.eval(
-            lua,
-            numkeys=1,
-            keys=[key],
-            args=["OPEN", "COMMITTING"],
-        )
-
-        return result == 1
+        result = await redis.eval(lua, 1, key, "OPEN", "COMMITTING")
+        return int(result) == 1
 
     @staticmethod
     async def add_file(session_id: str, file_id: str) -> None:
