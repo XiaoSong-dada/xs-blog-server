@@ -100,3 +100,95 @@ class UploadSessionService:
         if ok:
             return lock_value  # 拿到锁
         return None  # 没拿到
+
+    @staticmethod
+    async def update_done_with_artifact(
+        session_id: str,
+        artifact_path: str,
+        artifact_name: str | None = None,
+        artifact_size: int | None = None,
+        ttl_seconds: int = 1800,
+    ) -> bool:
+        """
+        将 session 从 COMMITTING -> DONE，并写入导出产物信息（如 zip 路径）。
+        返回 True 表示成功更新；False 表示状态不对或 session 不存在。
+        """
+        r: Redis = get_redis()
+        key = key_upload_session(session_id)
+
+        now = int(time.time())
+        if artifact_name is None:
+            artifact_name = f"articles_{session_id}.zip"
+
+        lua = """
+        -- 只允许 COMMITTING -> DONE
+        local status = redis.call("HGET", KEYS[1], "status")
+        if not status then
+            return -1
+        end
+        if status ~= ARGV[1] then
+            return 0
+        end
+
+        redis.call("HSET", KEYS[1],
+            "status", ARGV[2],
+            "artifact_path", ARGV[3],
+            "artifact_name", ARGV[4],
+            "artifact_size", ARGV[5],
+            "done_at", ARGV[6]
+        )
+
+        -- 给 session 续期，确保用户能下载
+        redis.call("EXPIRE", KEYS[1], ARGV[7])
+
+        return 1
+        """
+
+        result = await r.eval(
+            lua,
+            1,
+            key,
+            "COMMITTING",
+            "DONE",
+            artifact_path,
+            artifact_name,
+            str(artifact_size or 0),
+            str(now),
+            str(ttl_seconds),
+        )
+
+        return int(result) == 1
+
+    @staticmethod
+    async def update_failed(
+        session_id: str, reason: str, ttl_seconds: int = 600
+    ) -> bool:
+        """
+        COMMITTING -> FAILED，并写入失败原因。
+        """
+        r: Redis = get_redis()
+        key = key_upload_session(session_id)
+        now = int(time.time())
+
+        lua = """
+        local status = redis.call("HGET", KEYS[1], "status")
+        if not status then
+            return -1
+        end
+        if status ~= ARGV[1] then
+            return 0
+        end
+
+        redis.call("HSET", KEYS[1],
+            "status", ARGV[2],
+            "error", ARGV[3],
+            "failed_at", ARGV[4]
+        )
+        redis.call("EXPIRE", KEYS[1], ARGV[5])
+        return 1
+        """
+
+        result = await r.eval(
+            lua, 1, key, "COMMITTING", "FAILED", reason, str(now), str(ttl_seconds)
+        )
+        return int(result) == 1

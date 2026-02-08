@@ -9,7 +9,11 @@ from fastapi import (
     status,
 )
 from app.security.permissions import require_login, require_admin
-from app.schemas.base import SuccessResponse, ErrorResponse
+from app.schemas.base import (
+    SuccessResponse,
+    ErrorResponse,
+    FileResponse,
+)
 from app.services.file_service import (
     upload_file,
     create_session,
@@ -20,6 +24,8 @@ from app.services.file_service import (
 from app.services.upload_session_service import UploadSessionService
 from typing import List
 from app.schemas.file import SessionCommitParams
+from pathlib import Path
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -79,11 +85,33 @@ async def commit_session(
     return SuccessResponse(message="ok", code=200, data=result)
 
 
-@router.post("/export/{session_id}/commit", response_model=SuccessResponse)
+@router.post("/{session_id}/export", response_model=SuccessResponse)
 async def commit_session(
-    session_commit_params: SessionCommitParams,
+    session_id: str,
+    body: SessionCommitParams,
     _user=Depends(require_admin),
 ):
-    result = await commit_file_to_db_export(session_commit_params, _user.user_id)
-    logger.info("session:%s", result)
+    # 强制以 path 为准（避免 body 被篡改）
+    body.session_id = session_id
+
+    result = await commit_file_to_db_export(body, _user.user_id)
     return SuccessResponse(message="ok", code=200, data=result)
+
+
+@router.get("/export/sessions/{session_id}/download")
+async def download_export(session_id: str, _user=Depends(require_login)):
+    sess = await UploadSessionService.get(session_id)
+    if not sess or sess.user_id != str(_user.user_id):
+        raise ErrorResponse(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    if sess.status != "DONE" or not sess.artifact_path:
+        raise ErrorResponse(status_code=status.HTTP_409_CONFLICT, detail="not ready")
+
+    path = Path(sess.artifact_path)
+    if not path.exists():
+        raise ErrorResponse(
+            status_code=status.HTTP_404_NOT_FOUND, detail="file missing"
+        )
+
+    return FileResponse(
+        path=str(path), filename=path.name, media_type="application/zip"
+    )

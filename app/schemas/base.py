@@ -24,3 +24,9 @@ class PaginatedResponse(SuccessResponse):
     limit: int
     offset: int
     total: int
+
+
+class FileResponse(Base):
+    path: str
+    filename: str
+    media_type: str

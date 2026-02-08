@@ -16,11 +16,10 @@ from app.schemas.file import (
     UploadResult,
     CommitResult,
     SessionCommitParams,
-    ArticleExportOut,
 )
 from app.utils.datetime_utils import utc_now
 from app.services.upload_session_service import UploadSessionService
-from typing import List, Iterable
+from typing import List, Iterable, Dict
 from app.utils.file_utils import (
     scan_md_files,
     scan_images,
@@ -29,9 +28,12 @@ from app.utils.file_utils import (
     replace_img_url,
     replace_md_img_urls_to_filenames,
     extract_img_urls_from_md,
+    write_articles_to_dir,
+    make_zip_from_dir,
+    fetch_or_copy_image_to_dir,
 )
 from pathlib import Path
-from app.schemas.article import Article
+from app.schemas.article import Article, ArticleExportOut
 from uuid import UUID
 from app.repositories.article_repo import create_article, search_article_by_ids
 from urllib.parse import urlparse
@@ -336,32 +338,72 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
 
 
 async def commit_file_to_db_export(commit_result: SessionCommitParams, user_id: UUID):
-    # 提交临时区的文件
     session_id = commit_result.session_id
     session = await UploadSessionService.get(session_id)
     if not session:
         raise AppError("未找到对话", code=status.HTTP_404_NOT_FOUND)
 
-    # 用原子更新来“抢提交权”
     ok = await UploadSessionService.update_to_committing(session_id)
     if not ok:
-        # 说明不是 OPEN（重复提交 / 已关闭 / 已提交）
         raise AppError("不可重复提交或会话已关闭", code=status.HTTP_409_CONFLICT)
-    articles: List[ArticleExportOut] = []
-    # 获取 article by ids
+
+    # 1) 查文章
     with transaction() as conn:
-        articles = search_article_by_ids(conn, commit_result.article_ids)
-        if not articles or len(articles) == 0:
+        articles: List[ArticleExportOut] = search_article_by_ids(
+            conn, commit_result.article_ids
+        )
+        if not articles:
             raise AppError("未找到文章", code=status.HTTP_404_NOT_FOUND)
-    article_img_mapping = {}
-    # 关闭连接并处理图片链接
+
+    # 2) 抽图 + 替换为文件名
+    article_img_mapping: Dict[UUID, List[str]] = {}
     for article in articles:
         if not article.content_md:
             continue
-
         imgs = extract_img_urls_from_md(article.content_md)
-        if imgs and len(imgs) > 0:
+        if imgs:
             article_img_mapping[article.id] = imgs
         article.content_md = replace_md_img_urls_to_filenames(article.content_md)
 
-    #
+    # 3) 准备导出目录（建议不要和导入 store 混在一个目录结构）
+    export_dir = Path(settings.FILE_STORAGE_PATH) / "store" / "export" / session_id
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    # 4) 写 md 文件（title.md，重名自动 _1 _2）
+    write_articles_to_dir(articles, export_dir)
+
+    # 5) 把图片收集到 export_dir（和 md 同级）
+    #    你的旧链接是 http://localhost:8000/static/....png，
+    #    这里把它映射到 FILE_STORAGE_PATH 下对应的真实文件复制出来
+    errors: list[UploadError] = []
+    for aid, imgs in article_img_mapping.items():
+        for img_url in imgs:
+            saved = await fetch_or_copy_image_to_dir(
+                img_url=img_url,
+                export_dir=export_dir,
+                file_storage_path=settings.FILE_STORAGE_PATH,
+                static_prefix="/static/",
+                allow_remote_download=False,  # 如果你要支持外链图片再改 True
+            )
+            if saved is None:
+                errors.append(
+                    UploadError(file_name=str(aid), error=f"图片处理失败: {img_url}")
+                )
+
+    # 6) 打 zip
+    zip_path = export_dir / f"articles_{session_id}.zip"
+    make_zip_from_dir(export_dir, zip_path)
+
+    # 7) 更新 session 状态为 DONE，并保存 zip 的可下载信息（建议设置 TTL）
+    #    这里根据你 UploadSessionService 的实现来存：
+    #    - status = DONE
+    #    - artifact_path / download_url
+    await UploadSessionService.update_done_with_artifact(
+        session_id, artifact_path=str(zip_path)
+    )
+    download_url = f"/file/export/sessions/{session_id}/download"
+    return {
+        "session_id": session_id,
+        "errors": [e.__dict__ for e in errors],
+        "download_url": download_url,
+    }

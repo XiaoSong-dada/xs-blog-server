@@ -5,6 +5,8 @@ import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 from pathlib import PurePosixPath
+from typing import Optional
+import zipfile
 
 
 def scan_temp_all_files(temp_dir: str) -> list[Path]:
@@ -282,3 +284,115 @@ def extract_img_urls_from_md(content_md: str) -> List[str]:
             uniq.append(u)
 
     return uniq
+
+
+def _filename_from_url(url: str) -> str:
+    p = urlparse(url)
+    path = p.path if p.scheme else url
+    return PurePosixPath(path).name
+
+
+def _static_relpath_from_url(
+    url: str, static_prefix: str = "/static/"
+) -> Optional[str]:
+    """
+    把 /static/2026/02/a.png 或 http://host/static/2026/02/a.png
+    转换成相对路径 2026/02/a.png
+    """
+    p = urlparse(url)
+    path = p.path if p.scheme else url
+    if not path.startswith(static_prefix):
+        return None
+    return path[len(static_prefix) :].lstrip("/")
+
+
+async def fetch_or_copy_image_to_dir(
+    img_url: str,
+    export_dir: Path,
+    file_storage_path: str,
+    static_prefix: str = "/static/",
+    allow_remote_download: bool = False,
+) -> Optional[Path]:
+    """
+    将 img_url 对应的图片保存到 export_dir 下（文件名用 url 的 basename）。
+    - 如果是本地 static url：从磁盘复制
+    - 如果是远程 url：可选下载（allow_remote_download=True）
+
+    返回保存后的图片路径（export_dir/filename），失败返回 None
+    """
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = _filename_from_url(img_url)
+    if not filename:
+        return None
+
+    dst = export_dir / filename
+
+    # 1) 本地 static：copy
+    rel = _static_relpath_from_url(img_url, static_prefix=static_prefix)
+    if rel:
+        src = Path(file_storage_path) / rel
+        if src.exists() and src.is_file():
+            shutil.copy2(src, dst)
+            return dst
+        return None
+
+    # 2) 远程：下载（可选）
+    p = urlparse(img_url)
+    if p.scheme in ("http", "https") and allow_remote_download:
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.get(img_url)
+                r.raise_for_status()
+                dst.write_bytes(r.content)
+            return dst
+        except Exception:
+            return None
+
+    return None
+
+
+_WINDOWS_ILLEGAL = r'<>:"/\|?*'
+_ILLEGAL_RE = re.compile(f"[{re.escape(_WINDOWS_ILLEGAL)}]")
+
+
+def sanitize_filename(name: str, max_len: int = 80) -> str:
+    name = name.strip().replace("\n", " ")
+    name = _ILLEGAL_RE.sub("_", name)
+    name = re.sub(r"\s+", " ", name).strip(" .")
+    if len(name) > max_len:
+        name = name[:max_len].rstrip(" .")
+    return name or "untitled"
+
+
+def unique_name(base: str, used: set[str], suffix: str) -> str:
+    """
+    base 不含后缀，suffix 含点（.md）
+    """
+    name = f"{base}{suffix}"
+    if name not in used:
+        used.add(name)
+        return name
+    i = 1
+    while True:
+        name = f"{base}_{i}{suffix}"
+        if name not in used:
+            used.add(name)
+            return name
+        i += 1
+
+
+def write_articles_to_dir(articles: list, export_dir: Path) -> None:
+    used = set()
+    for a in articles:
+        title = sanitize_filename(a.title)
+        md_name = unique_name(title, used, ".md")
+        (export_dir / md_name).write_text(a.content_md or "", encoding="utf-8")
+
+
+def make_zip_from_dir(export_dir: Path, zip_path: Path) -> None:
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        for p in export_dir.rglob("*"):
+            if p.is_file():
+                z.write(p, arcname=str(p.relative_to(export_dir)))
