@@ -101,12 +101,12 @@ async def commit_session(
 @router.get("/export/sessions/{session_id}/download")
 async def download_export(session_id: str, _user=Depends(require_login)):
     sess = await UploadSessionService.get(session_id)
-    if not sess or sess.user_id != str(_user.user_id):
+    if not sess or sess.get("user_id") != str(_user.user_id):
         raise ErrorResponse(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
-    if sess.status != "DONE" or not sess.artifact_path:
+    if sess.get("status") != "DONE" or not sess.get("artifact_path"):
         raise ErrorResponse(status_code=status.HTTP_409_CONFLICT, detail="not ready")
 
-    path = Path(sess.artifact_path)
+    path = Path(sess["artifact_path"])
     if not path.exists():
         raise ErrorResponse(
             status_code=status.HTTP_404_NOT_FOUND, detail="file missing"
