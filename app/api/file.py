@@ -1,5 +1,6 @@
 from uuid import UUID
 import logging
+from fastapi.responses import FileResponse as FastAPIFileResponse
 from fastapi import (
     APIRouter,
     UploadFile,
@@ -112,6 +113,6 @@ async def download_export(session_id: str, _user=Depends(require_login)):
             status_code=status.HTTP_404_NOT_FOUND, detail="file missing"
         )
 
-    return FileResponse(
+    return FastAPIFileResponse(
         path=str(path), filename=path.name, media_type="application/zip"
     )

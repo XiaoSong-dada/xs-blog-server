@@ -391,7 +391,7 @@ async def commit_file_to_db_export(commit_result: SessionCommitParams, user_id: 
                 )
 
     # 6) 打 zip
-    zip_path = export_dir / f"articles_{session_id}.zip"
+    zip_path = export_dir.parent / f"articles_{session_id}.zip"
     make_zip_from_dir(export_dir, zip_path)
 
     # 7) 更新 session 状态为 DONE，并保存 zip 的可下载信息（建议设置 TTL）
