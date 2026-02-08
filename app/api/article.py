@@ -101,6 +101,12 @@ def publish(id: UUID, _user: UserInDB = Depends(require_admin)):
 @router.post("/batch/publish", response_model=SuccessResponseBase)
 def batch_publish(id_array: list[str], _user: UserInDB = Depends(require_admin)):
     logger.info("batch publish acticle_id: %s", id_array)
+    id_array
+    if len(id_array) == 0:
+        return ErrorResponse(
+            message="批量发布数组不能为空", code=status.HTTP_422_UNPROCESSABLE_CONTENT
+        )
+
     ok = batch_publish_acticle(id_array)
     if not ok:
         return ErrorResponse(
