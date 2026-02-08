@@ -15,6 +15,8 @@ from app.schemas.file import (
     UploadError,
     UploadResult,
     CommitResult,
+    SessionCommitParams,
+    ArticleExportOut,
 )
 from app.utils.datetime_utils import utc_now
 from app.services.upload_session_service import UploadSessionService
@@ -25,11 +27,13 @@ from app.utils.file_utils import (
     scan_md_files,
     read_md_images_map,
     replace_img_url,
+    replace_md_img_urls_to_filenames,
+    extract_img_urls_from_md,
 )
 from pathlib import Path
 from app.schemas.article import Article
 from uuid import UUID
-from app.repositories.article_repo import create_article
+from app.repositories.article_repo import create_article, search_article_by_ids
 from urllib.parse import urlparse
 from app.utils.pinyin_utils import filename_to_slug
 
@@ -329,3 +333,35 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
             result.errors.append(UploadError(file_name=str(file), error=str(e)))
 
     return result
+
+
+async def commit_file_to_db_export(commit_result: SessionCommitParams, user_id: UUID):
+    # 提交临时区的文件
+    session_id = commit_result.session_id
+    session = await UploadSessionService.get(session_id)
+    if not session:
+        raise AppError("未找到对话", code=status.HTTP_404_NOT_FOUND)
+
+    # 用原子更新来“抢提交权”
+    ok = await UploadSessionService.update_to_committing(session_id)
+    if not ok:
+        # 说明不是 OPEN（重复提交 / 已关闭 / 已提交）
+        raise AppError("不可重复提交或会话已关闭", code=status.HTTP_409_CONFLICT)
+    articles: List[ArticleExportOut] = []
+    # 获取 article by ids
+    with transaction() as conn:
+        articles = search_article_by_ids(conn, commit_result.article_ids)
+        if not articles or len(articles) == 0:
+            raise AppError("未找到文章", code=status.HTTP_404_NOT_FOUND)
+    article_img_mapping = {}
+    # 关闭连接并处理图片链接
+    for article in articles:
+        if not article.content_md:
+            continue
+
+        imgs = extract_img_urls_from_md(article.content_md)
+        if imgs and len(imgs) > 0:
+            article_img_mapping[article.id] = imgs
+        article.content_md = replace_md_img_urls_to_filenames(article.content_md)
+
+    #

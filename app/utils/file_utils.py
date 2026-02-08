@@ -1,6 +1,10 @@
 from pathlib import Path
 from typing import Dict, List
 import re
+import shutil
+from pathlib import Path
+from urllib.parse import urlparse
+from pathlib import PurePosixPath
 
 
 def scan_temp_all_files(temp_dir: str) -> list[Path]:
@@ -184,3 +188,97 @@ def replace_img_url(
         file.write_text(text, encoding=encoding)
 
     return changed
+
+
+def _to_filename(url: str) -> str | None:
+    """
+    把一个图片 url/路径变成文件名：
+    - http(s)://.../a.png -> a.png
+    - /static/xx/a.png -> a.png
+    - 2026/02/07/a.png -> a.png
+    - data:... -> None（不处理）
+    """
+    s = url.strip()
+    if not s:
+        return None
+    if s.startswith("data:"):
+        return None
+
+    p = urlparse(s)
+    if p.scheme in ("http", "https"):
+        path = p.path  # 只拿 path，忽略 query
+    else:
+        # 相对路径 / 绝对路径 / static 路径都走这里
+        path = s
+
+    name = PurePosixPath(path).name
+    return name or None
+
+
+def replace_md_img_urls_to_filenames(content: str) -> str:
+    """把 content 中图片链接替换成仅文件名（保留原 Markdown/HTML 结构）。"""
+    if not content:
+        return content
+
+    # 1) Markdown 图片替换
+    def md_replacer(m: re.Match) -> str:
+        raw_url = m.group("url").strip()
+        wrapped = raw_url.startswith("<") and raw_url.endswith(">")
+        url = raw_url[1:-1].strip() if wrapped else raw_url
+
+        new_name = _to_filename(url)
+        if not new_name:
+            return m.group(0)
+
+        replaced = f"<{new_name}>" if wrapped else new_name
+        return m.group(0).replace(raw_url, replaced)
+
+    content = _MD_IMAGE_RE.sub(md_replacer, content)
+
+    # 2) HTML img 替换
+    def html_replacer(m: re.Match) -> str:
+        url = m.group("url")
+        new_name = _to_filename(url)
+        if not new_name:
+            return m.group(0)
+        return f"{m.group(1)}{m.group(2)}{new_name}{m.group(4)}"
+
+    content = _HTML_IMG_RE.sub(html_replacer, content)
+
+    return content
+
+
+def extract_img_urls_from_md(content_md: str) -> List[str]:
+    """
+    从 Markdown 内容中提取图片链接（Markdown + HTML img）。
+    返回：按出现顺序去重后的 url 列表。
+    """
+    if not content_md:
+        return []
+
+    urls: List[str] = []
+
+    # 1) Markdown 图片
+    for m in _MD_IMAGE_RE.finditer(content_md):
+        raw_url = m.group("url").strip()
+        # 支持 ![](<path with spaces>)
+        if raw_url.startswith("<") and raw_url.endswith(">"):
+            raw_url = raw_url[1:-1].strip()
+        if raw_url:
+            urls.append(raw_url)
+
+    # 2) HTML img
+    for m in _HTML_IMG_RE.finditer(content_md):
+        url = m.group("url").strip()
+        if url:
+            urls.append(url)
+
+    # 去重（保序）
+    seen = set()
+    uniq: List[str] = []
+    for u in urls:
+        if u not in seen:
+            seen.add(u)
+            uniq.append(u)
+
+    return uniq

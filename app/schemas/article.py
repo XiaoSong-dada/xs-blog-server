@@ -73,3 +73,9 @@ class ArticleSearchOut(Base):
     snippet: Optional[str] = None
     hit_title: Optional[bool] = None
     hit_content: Optional[bool] = None
+
+
+class ArticleExportOut(Base):
+    id: UUID
+    title: str
+    content_md: str

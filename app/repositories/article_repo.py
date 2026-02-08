@@ -19,6 +19,7 @@ from app.schemas.article import (
     ArticleDelete,
     ArticlePublish,
     BatchArticlePublish,
+    ArticleExportOut,
 )
 from typing import Optional
 from uuid import UUID
@@ -219,3 +220,17 @@ def search_article(
     total = fetch_count(conn, built.count_sql, built.params)
 
     return [ArticleSearchOut(**row) for row in rows], total
+
+
+def search_article_by_ids(
+    conn: psycopg.Connection, article_ids: list[UUID]
+) -> list[ArticleExportOut]:
+
+    sql = """
+    SELECT id,  title, content_md  
+    FROM article
+    WHERE id = ANY(%s)
+    """
+    rows = fetch_page(conn, sql, (article_ids,), limit=len(article_ids), offset=0)
+
+    return [ArticleExportOut(**row) for row in rows]

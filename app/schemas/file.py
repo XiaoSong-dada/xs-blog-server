@@ -53,3 +53,9 @@ class UploadResult:
 class CommitResult:
     success: List[str]
     errors: List[UploadError]
+
+
+@dataclass
+class SessionCommitParams:
+    session_id: str
+    article_ids: list[UUID]

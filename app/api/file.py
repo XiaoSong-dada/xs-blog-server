@@ -15,10 +15,11 @@ from app.services.file_service import (
     create_session,
     upload_file_session,
     commit_file_to_db,
+    commit_file_to_db_export,
 )
 from app.services.upload_session_service import UploadSessionService
 from typing import List
-from app.schemas.file import UploadGroup
+from app.schemas.file import SessionCommitParams
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -74,5 +75,15 @@ async def commit_session(
     _user=Depends(require_admin),
 ):
     result = await commit_file_to_db(session_id, _user.user_id)
+    logger.info("session:%s", result)
+    return SuccessResponse(message="ok", code=200, data=result)
+
+
+@router.post("/export/{session_id}/commit", response_model=SuccessResponse)
+async def commit_session(
+    session_commit_params: SessionCommitParams,
+    _user=Depends(require_admin),
+):
+    result = await commit_file_to_db_export(session_commit_params, _user.user_id)
     logger.info("session:%s", result)
     return SuccessResponse(message="ok", code=200, data=result)
