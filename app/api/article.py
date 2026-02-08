@@ -17,15 +17,17 @@ from app.services.article_service import (
     delete_acticle,
     publish_acticle,
     get_article_by_id,
+    batch_publish_acticle,
 )
 from app.security.permissions import require_admin
+from typing import List
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=PaginatedResponse)
-def list(query: ArticleQuery = Depends()):
+def list_article(query: ArticleQuery = Depends()):
     logger.info("query: %s", query)
     article_data = get_article_page(query)
     return PaginatedResponse(message="ok", code=status.HTTP_200_OK, **article_data)
@@ -89,6 +91,17 @@ def publish(id: UUID, _user: UserInDB = Depends(require_admin)):
     logger.info("publish acticle_id: %s", id)
 
     ok = publish_acticle(id)
+    if not ok:
+        return ErrorResponse(
+            message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+
+
+@router.post("/batch/publish", response_model=SuccessResponseBase)
+def batch_publish(id_array: list[str], _user: UserInDB = Depends(require_admin)):
+    logger.info("batch publish acticle_id: %s", id_array)
+    ok = batch_publish_acticle(id_array)
     if not ok:
         return ErrorResponse(
             message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -15,6 +15,8 @@ from app.repositories.article_repo import (
     publish_article as publish,
     add_view,
     search_article,
+    check_array_id_is_delete,
+    batch_publish_article as batch_publish,
 )
 from app.schemas.article import (
     ArticleQuery,
@@ -23,6 +25,7 @@ from app.schemas.article import (
     ArticleDelete,
     ArticlePublish,
     ArticleSearchQuery,
+    BatchArticlePublish,
 )
 from fastapi import status
 from app.utils.datetime_utils import utc_now
@@ -147,6 +150,25 @@ def publish_acticle(id: UUID) -> bool:
         )
 
         ok = publish(conn, article)
+        if not ok:
+            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return True
+
+
+def batch_publish_acticle(id: list[UUID]) -> bool:
+
+    with transaction() as conn:
+        exists_article = check_array_id_is_delete(conn, id)
+        if not exists_article:
+            raise AppError("文章未找到或已删除", code=status.HTTP_404_NOT_FOUND)
+
+        article = BatchArticlePublish(
+            id=id,
+            published_at=utc_now(),
+        )
+
+        ok = batch_publish(conn, article)
         if not ok:
             raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

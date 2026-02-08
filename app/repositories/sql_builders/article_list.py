@@ -18,6 +18,11 @@ def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuer
 
     q = QueryParts()
 
+    if search.published_at == "1":
+        q.where_is_not_null("published_at")
+    elif search.published_at == "0":
+        q.where_is_null("published_at")
+
     if search:
         q.where_like("slug", search.slug)
         q.where_like("title", search.title)

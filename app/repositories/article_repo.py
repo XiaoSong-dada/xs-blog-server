@@ -18,6 +18,7 @@ from app.schemas.article import (
     ArticleUpdate,
     ArticleDelete,
     ArticlePublish,
+    BatchArticlePublish,
 )
 from typing import Optional
 from uuid import UUID
@@ -151,6 +152,16 @@ def is_delete(conn, article_id: UUID) -> bool:
     return fetch_one(conn, sql, (article_id,)) is not None
 
 
+def check_array_id_is_delete(conn, article_id: list[UUID]) -> bool:
+    sql = """
+    SELECT 1
+    FROM article
+    WHERE id = ANY(%s) and deleted_at IS NULL
+    LIMIT 1
+    """
+    return fetch_one(conn, sql, (article_id,)) is not None
+
+
 def delete_article(conn: psycopg.Connection, article: ArticleDelete) -> bool:
     sql = """
             UPDATE article SET deleted_at = %s WHERE id = %s;
@@ -171,6 +182,18 @@ def publish_article(conn: psycopg.Connection, article: ArticlePublish) -> bool:
     return affected == 1
 
 
+def batch_publish_article(
+    conn: psycopg.Connection, article: BatchArticlePublish
+) -> bool:
+    sql = """
+            UPDATE article SET published_at = %s WHERE id = ANY(%s);
+        """
+    params = (article.published_at, article.id)
+
+    affected = execute(conn, sql, params)
+    return affected == len(article.id)
+
+
 def add_view(conn: psycopg.Connection, id: str) -> bool:
     sql = """
         UPDATE article
@@ -184,7 +207,9 @@ def add_view(conn: psycopg.Connection, id: str) -> bool:
     return affected == 1
 
 
-def search_article(conn: psycopg.Connection, query: ArticleSearchQuery) -> tuple[list[ArticleSearchOut], int]:
+def search_article(
+    conn: psycopg.Connection, query: ArticleSearchQuery
+) -> tuple[list[ArticleSearchOut], int]:
 
     built = build_search_list_query(query)
 

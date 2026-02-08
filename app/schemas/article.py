@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from typing import Optional
 from pydantic import Field
 from datetime import datetime
+from dataclasses import dataclass
 
 
 class Article(Base):
@@ -23,6 +24,7 @@ class ArticleQuery(PageQuery):
     title: Optional[str] = None
     slug: Optional[str] = None
     content_md: Optional[str] = None
+    published_at: Optional[str] = None
 
 
 class ArticleCreated(Base):
@@ -47,6 +49,12 @@ class ArticleDelete(Base):
 
 class ArticlePublish(Base):
     id: UUID
+    published_at: datetime
+
+
+@dataclass
+class BatchArticlePublish:
+    id: list[UUID]
     published_at: datetime
 
 
