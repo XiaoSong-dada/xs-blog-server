@@ -91,3 +91,19 @@ def list_users(
     total = fetch_count(conn, built.count_sql, built.params)
 
     return [UserInDB(**row) for row in rows], total
+
+
+def update_user(conn: psycopg.Connection, user: UserInDB) -> bool:
+    sql = """
+    UPDATE users
+    SET email = %s, nick_name = %s, avatar_url = %s
+    WHERE user_id = %s
+    """
+    params = (
+        user.email,
+        user.nick_name,
+        user.avatar_url,
+        user.user_id,
+    )
+    affected = execute(conn, sql, params)
+    return affected == 1
