@@ -44,3 +44,7 @@ class UserUpdate(Base):
     email: Optional[str] = None
     nick_name: Optional[str] = None
     avatar_url: Optional[str] = None
+
+class UserUpdatePassword(Base):
+    old_password:str
+    password:str

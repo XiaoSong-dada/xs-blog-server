@@ -7,10 +7,12 @@ from app.repositories.user_repo import (
     get_user_by_username,
     get_user_by_id,
     update_user as update_user_repo,
+    update_user_password_rope,
 )
 from app.schemas.user import UserCreate, UserInDB, UserListQuery
-from app.security.password import get_password_hash
+from app.security.password import get_password_hash, verify_password
 from app.utils.verification import is_null_or_empty
+from fastapi import status
 
 
 def register_user(user: UserCreate) -> None:
@@ -91,10 +93,26 @@ def get_user_detail_by_id(user_id: str) -> UserInDB:
             raise AppError("用户未找到", code=404)
     return user
 
-def update_user(user: UserInDB)->bool:
+
+def update_user(user: UserInDB) -> bool:
     with transaction() as conn:
         ok = update_user_repo(conn, user)
         if not ok:
             raise AppError("用户信息更新失败", code=500)
 
+    return ok
+
+
+def update_password(user: UserInDB, user_old_pwd, user_old_pwd_in_db) -> bool:
+    # 检查密码是否相同
+    verify = verify_password(user_old_pwd, user_old_pwd_in_db)
+    if not verify :
+        raise AppError("旧密码不正确", code=status.HTTP_400_BAD_REQUEST)
+
+    user.password = get_password_hash(user.password)
+
+    with transaction() as conn:
+        ok = update_user_password_rope(conn, user)
+        if not ok:
+            raise AppError("用户信息更新失败", code=500)
     return ok

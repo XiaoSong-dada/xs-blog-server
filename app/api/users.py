@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 import logging
 
 from app.security.permissions import require_admin, require_login
@@ -8,12 +8,19 @@ from app.schemas.base import (
     SuccessResponseBase,
     ErrorResponse,
 )
-from app.schemas.user import UserCreate, UserListQuery, UserInDB, UserUpdate
+from app.schemas.user import (
+    UserCreate,
+    UserListQuery,
+    UserInDB,
+    UserUpdate,
+    UserUpdatePassword,
+)
 from app.services.user_service import (
     register_user,
     delete_user,
     get_users_page,
     update_user,
+    update_password,
 )
 
 router = APIRouter()
@@ -51,6 +58,24 @@ def update_user_info(user_update: UserUpdate, user: UserInDB = Depends(require_l
     logger.info("更新账号信息: %s", user_update)
     updated_user = user.model_copy(update=user_update.model_dump(exclude_unset=True))
     ok = update_user(updated_user)
+    if not ok:
+        return ErrorResponse("用户信息更新失败", code=500)
+    return SuccessResponseBase(message="ok", code=200)
+
+
+@router.put("/owner/password", response_model=SuccessResponseBase)
+def update_user_info(
+    user_update: UserUpdatePassword, user: UserInDB = Depends(require_login)
+):
+    logger.info("修改账号密码: %s", user_update)
+    
+    if not user_update.old_password:
+        return ErrorResponse("用户旧密码不能为空", code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+    
+    user_in_db =  user.model_copy(update=user_update.model_dump(exclude_unset=True))
+
+    ok = update_password(user_in_db, user_update.old_password , user.password)
+
     if not ok:
         return ErrorResponse("用户信息更新失败", code=500)
     return SuccessResponseBase(message="ok", code=200)

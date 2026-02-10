@@ -107,3 +107,15 @@ def update_user(conn: psycopg.Connection, user: UserInDB) -> bool:
     )
     affected = execute(conn, sql, params)
     return affected == 1
+
+
+def update_user_password_rope(conn: psycopg.Connection, user: UserInDB) -> bool:
+    sql = """
+    UPDATE users  SET password = %s WHERE user_id = %s
+    """
+    params = (
+        user.password,
+        user.user_id,
+    )
+    affected = execute(conn, sql, params)
+    return affected == 1
