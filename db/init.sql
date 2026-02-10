@@ -18,7 +18,8 @@ CREATE TABLE
         is_admin bool DEFAULT false NOT NULL,
         nick_name varchar(20),
         CONSTRAINT users_pkey PRIMARY KEY (user_id),
-        CONSTRAINT users_username_key UNIQUE (username)
+        CONSTRAINT users_username_key UNIQUE (username),
+        CONSTRAINT users_email_unique UNIQUE (email)
     );
 
 INSERT INTO
