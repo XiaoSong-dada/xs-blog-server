@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 def upload(
     file: UploadFile = FastApiFile(...),
     bucket: str = Form("attachment"),
-    _user=Depends(require_admin),
+    _user=Depends(require_login),
 ):
     logger.info("before_file:%s", file)
 

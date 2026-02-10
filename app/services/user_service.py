@@ -104,6 +104,10 @@ def get_user_detail_by_id(user_id: str) -> UserInDB:
 
 def update_user(user: UserInDB) -> bool:
     with transaction() as conn:
+        if check_email_exists(conn, user.email):
+            raise AppError("邮箱已被注册", code=409)
+
+
         ok = update_user_repo(conn, user)
         if not ok:
             raise AppError("用户信息更新失败", code=500)
