@@ -13,9 +13,13 @@ from app.schemas.user import UserCreate, UserInDB, UserListQuery
 from app.security.password import get_password_hash, verify_password
 from app.utils.verification import is_null_or_empty
 from fastapi import status
+from app.services.email_service import verify_email_code
 
-
-def register_user(user: UserCreate) -> None:
+async def register_user(user: UserCreate) -> None:
+    # 校验验证码
+    if not await verify_email_code(user.email, user.code):
+        raise AppError("验证码错误或已过期", code=status.HTTP_400_BAD_REQUEST)
+    
     user_in_db = UserInDB(
         username=user.username,
         password=get_password_hash(user.password),

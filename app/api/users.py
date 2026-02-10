@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/register", status_code=201)
-def register(user: UserCreate):
-    register_user(user)
+async def register(user: UserCreate):
+    await register_user(user)
     return SuccessResponse(message="register success", code=201)
 
 

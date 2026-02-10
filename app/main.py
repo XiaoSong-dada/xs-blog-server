@@ -12,13 +12,14 @@ from fastapi.responses import JSONResponse
 import logging
 from fastapi.staticfiles import StaticFiles
 from app.core.redis import init_redis, close_redis
+from app.utils.email_utils import send_mail
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-
+logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_redis()
@@ -91,3 +92,4 @@ def cache_check():
         return {"ok": True, "value": value}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+

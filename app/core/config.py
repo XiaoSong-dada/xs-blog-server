@@ -22,5 +22,10 @@ class Settings:
     ).split(",")
     FILE_STORAGE_PATH: str | None = os.getenv("FILE_STORAGE_PATH")
 
+    EMAIL_HOST: str = os.getenv("EMAIL_HOST")
+    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", "0"))
+    EMAIL_CODE: str = os.getenv("EMAIL_CODE")
+    EMAIL_SENDER: str = os.getenv("EMAIL_SENDER")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME")
 
 settings = Settings()

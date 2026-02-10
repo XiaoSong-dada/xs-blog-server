@@ -11,6 +11,7 @@ class UserCreate(Base):
     password: str
     email: Optional[str] = None
     nick_name: Optional[str] = None
+    code: Optional[str] = None  # 用于邮箱注册时的验证码
 
 
 class UserInDB(Base):
@@ -22,7 +23,6 @@ class UserInDB(Base):
     is_admin: bool = False
     avatar_url: Optional[str] = None
     nick_name: Optional[str] = None
-
 
 class UserOut(Base):
     user_id: UUID = Field(default_factory=uuid4)
