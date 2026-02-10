@@ -4,6 +4,8 @@ import re
 from app.core.exceptions import AppError
 from fastapi import status
 from app.utils.email_utils import send_mail
+from app.repositories.user_repo import check_email_exists
+from app.db.read_connection import read_connection
 
 
 async def request_email_code(email: str) -> str | None:
@@ -42,6 +44,12 @@ async def register_email(email: str) -> str:
     # 这段邮箱校验好像有问题，当格式不正确时速度贼慢
     if not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
         raise AppError("邮箱格式不正确", code=status.HTTP_400_BAD_REQUEST)
+
+    # 判断邮箱是否存在
+    with read_connection() as conn:
+        email_exists = check_email_exists(conn , email)
+    if email_exists:
+        raise AppError("邮箱已被注册", code=status.HTTP_400_BAD_REQUEST)
 
     code = await request_email_code(email)
 

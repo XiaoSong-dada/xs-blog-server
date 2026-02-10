@@ -119,3 +119,11 @@ def update_user_password_rope(conn: psycopg.Connection, user: UserInDB) -> bool:
     )
     affected = execute(conn, sql, params)
     return affected == 1
+
+def check_email_exists(conn: psycopg.Connection, email: str) -> bool:
+    sql = """
+    SELECT user_id FROM users WHERE email = %s
+    LIMIT 1
+    """
+    user = fetch_one(conn, sql, (email,))
+    return user is not None

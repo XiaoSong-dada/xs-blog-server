@@ -8,6 +8,7 @@ from app.repositories.user_repo import (
     get_user_by_id,
     update_user as update_user_repo,
     update_user_password_rope,
+    check_email_exists,
 )
 from app.schemas.user import UserCreate, UserInDB, UserListQuery
 from app.security.password import get_password_hash, verify_password
@@ -27,9 +28,12 @@ async def register_user(user: UserCreate) -> None:
         nick_name=user.nick_name,
     )
     with transaction() as conn:
+        if check_email_exists(conn, user.email):
+            raise AppError("邮箱已被注册", code=409)
+
         ok = create_user(conn, user_in_db)
         if not ok:
-            raise AppError("username already exists", code=409)
+            raise AppError("用户名已存在", code=409)
 
 
 def register_admin_user(user: UserCreate) -> None:
