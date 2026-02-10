@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 import logging
 
-from app.security.permissions import require_admin
+from app.security.permissions import require_admin, require_login
 from app.schemas.base import SuccessResponse, PaginatedResponse
-from app.schemas.user import UserCreate, UserListQuery
+from app.schemas.user import UserCreate, UserListQuery, UserInDB
 from app.services.user_service import register_user, delete_user, get_users_page
 
 router = APIRouter()
@@ -23,7 +23,14 @@ def delete(user_name: str, admin_user=Depends(require_admin)):
 
 
 @router.get("", response_model=PaginatedResponse)
-def list(query: UserListQuery = Depends(), _admin=Depends(require_admin)):
+def list_users(query: UserListQuery = Depends(), _admin=Depends(require_admin)):
     logger.info("query: %s", query)
     user_data = get_users_page(query)
     return PaginatedResponse(message="ok", code=200, **user_data)
+
+
+@router.get("/owner/info", response_model=SuccessResponse)
+def get_user_by_name(_user: UserInDB = Depends(require_login)):
+    logger.info("查询账号信息: %s", _user)
+
+    return SuccessResponse(message="ok", code=200, data=_user.model_dump())
