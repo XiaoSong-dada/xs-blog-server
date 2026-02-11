@@ -28,4 +28,10 @@ class Settings:
     EMAIL_SENDER: str = os.getenv("EMAIL_SENDER")
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME")
 
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "10"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+    DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+    DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))
+    DB_POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
+
 settings = Settings()

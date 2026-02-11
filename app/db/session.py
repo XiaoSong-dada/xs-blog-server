@@ -3,7 +3,9 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from urllib.parse import quote_plus
 
-from app.core.config import settings  # 你现在的 settings = Settings() :contentReference[oaicite:1]{index=1}
+from app.core.config import (
+    settings,
+)  # 你现在的 settings = Settings() :contentReference[oaicite:1]{index=1}
 
 
 def build_async_db_url() -> str:
@@ -32,7 +34,11 @@ DATABASE_URL = build_async_db_url()
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
+    pool_pre_ping=settings.DB_POOL_PRE_PING,
 )
 
 SessionLocal = async_sessionmaker(
