@@ -86,7 +86,7 @@ async def create_link(
 
     return SuccessResponseBase(
         message="新增友链成功",
-        code=status.HTTP_421_MISDIRECTED_REQUEST,
+        code=status.HTTP_201_CREATED,
     )
 
 
