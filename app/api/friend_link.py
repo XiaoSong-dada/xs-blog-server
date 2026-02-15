@@ -7,7 +7,7 @@ from app.schemas.friend_link import (
     FriendLinkOut,
     FriendLinkListQuery,
     FriendLinkUpdateRequest,
-    FriendLinkCreate
+    FriendLinkCreate,
 )
 from app.services.friend_link_service import (
     get_friend_links,
@@ -15,12 +15,14 @@ from app.services.friend_link_service import (
     update_frind_link,
     delete_friend_link,
     add_frind_link,
+    get_publish_frind_links,
 )
 from app.schemas.base import (
     SuccessResponse,
     PaginatedResponse,
     ErrorResponse,
     SuccessResponseBase,
+    SuccessResponseNoPage,
 )
 from app.security.permissions import require_login, require_admin
 
@@ -65,12 +67,12 @@ async def detail_links(
 
     data = FriendLinkOut.model_validate(item)
 
-
     return SuccessResponse(
         message="获取友链成功",
         code=200,
         data=data,
     )
+
 
 @router.post("")
 async def create_link(
@@ -88,7 +90,6 @@ async def create_link(
         message="新增友链成功",
         code=status.HTTP_201_CREATED,
     )
-
 
 
 @router.put("")
@@ -117,8 +118,8 @@ async def update_links(
 async def delete_link(
     id: str, db: AsyncSession = Depends(get_db), _user=Depends(require_admin)
 ):
-    logger.info('这是传入的id：%s' , id)
-    
+    logger.info("这是传入的id：%s", id)
+
     if not id:
         return ErrorResponse(
             message="未传入id", code=status.HTTP_421_MISDIRECTED_REQUEST
@@ -129,4 +130,20 @@ async def delete_link(
     return SuccessResponseBase(
         message="删除友链成功",
         code=200,
+    )
+
+
+@router.get("/publish/links")
+async def get_publish_list(
+    db: AsyncSession = Depends(get_db),
+):
+
+    items, total = await get_publish_frind_links(db=db)
+
+    if not items:
+        return ErrorResponse(message="暂无友链", code=404)
+
+    data = [FriendLinkOut.model_validate(x) for x in items]
+    return SuccessResponseNoPage(
+        message="获取友链成功", code=200, data=data, total=total
     )

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Any
+from typing import Any , Optional
 
 
 class Base(BaseModel):
@@ -13,6 +13,9 @@ class SuccessResponseBase(Base):
 
 class SuccessResponse(SuccessResponseBase):
     data: Any | None = None
+
+class SuccessResponseNoPage(SuccessResponse):
+    total: int
 
 
 class ErrorResponse(Base):

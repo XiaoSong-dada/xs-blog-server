@@ -47,7 +47,7 @@ async def delete_friend_link(db: AsyncSession, id: str) -> bool:
 
 
 async def update_frind_link(db: AsyncSession, payload: FriendLinkUpdateRequest) -> bool:
-    is_active = await FriendLinkRepo.get_one(db=db,id=payload.id)
+    is_active = await FriendLinkRepo.get_one(db=db, id=payload.id)
 
     if not is_active:
         raise AppError("未找到要修改的友链", status.HTTP_404_NOT_FOUND)
@@ -55,3 +55,12 @@ async def update_frind_link(db: AsyncSession, payload: FriendLinkUpdateRequest) 
     result = await FriendLinkRepo.update_one(db, id=payload.id, payload=payload)
 
     return result != None
+
+
+async def get_publish_frind_links(
+    db: AsyncSession,
+) -> list:
+
+    items, total = await FriendLinkRepo.get_all_list(db)
+
+    return items, total

@@ -139,3 +139,27 @@ class FriendLinkRepo:
         obj.is_active = False
         await db.commit()
         return True
+
+    @staticmethod
+    async def get_all_list(        
+        db: AsyncSession,
+    ) -> list[FriendLink]:
+        
+        conditions = [FriendLink.is_active.is_(True)]
+
+        total_stmt = select(func.count()).select_from(FriendLink).where(*conditions)
+        total = await db.scalar(total_stmt)
+        total = int(total or 0)
+
+        items_stmt = (
+            select(FriendLink)
+            .where(*conditions)
+            .order_by(
+                FriendLink.sort_order.asc().nulls_last(),
+                FriendLink.created_at.desc(),
+            )
+        )
+        result = await db.execute(items_stmt)
+        items = result.scalars().all()
+
+        return items, total
