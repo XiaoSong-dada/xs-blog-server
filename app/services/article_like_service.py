@@ -2,7 +2,7 @@ from typing import Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.article_like_repo import ArticleLikeRepo
-from app.repositories.article_repo import exists_id
+from app.repositories.article_repo_async import ArticleRepoAsync
 
 
 class ArticleLikeService:
@@ -14,7 +14,7 @@ class ArticleLikeService:
         返回 (liked, like_count)
         """
         # 验证文章存在且未被删除
-        ok = await exists_id(db, article_id)
+        ok = await ArticleRepoAsync.exists_id(db, article_id)
         if not ok:
             raise ValueError("article not found")
 

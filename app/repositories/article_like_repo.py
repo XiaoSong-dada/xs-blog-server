@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple, List
+from typing import Tuple, List
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,4 +91,4 @@ class ArticleLikeRepo:
         )
         res = await db.execute(stmt)
         rows = res.all()
-        return [dict(r) for r in rows]
+        return [dict(r._mapping) for r in rows]

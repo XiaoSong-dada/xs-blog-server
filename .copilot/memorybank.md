@@ -91,3 +91,28 @@ class ArticleLikeRepo:
 	- 使用 SQLAlchemy async API (`AsyncSession`、`select`、`update`) 实现软删除/恢复/插入逻辑。
 
 记录以上到 memorybank 有助于后续维护与新开发者遵循统一风格。
+
+## 文章点赞（摘要）
+
+- 路由：`POST /articles/{article_id}/like`（位置：`app/api/article.py`）。
+	- 鉴权：必须登录，使用 `require_login`（`app/security/permissions.py`）。
+	- 依赖注入：`AsyncSession` 来自 `get_db`（`app/db/deps.py`）。
+	- 返回：`SuccessResponse`，`data` = `{ "liked": bool, "like_count": int }`；文章不存在返回 404。
+
+- Service（位置：`app/services/article_like_service.py`）：
+	- 声明：`class ArticleLikeService`，使用 `@staticmethod`。
+	- 签名：`toggle_like(db: AsyncSession, user_id: str, article_id: str) -> tuple[bool, int]`。
+	- 职责：校验文章存在（使用 `ArticleRepoAsync.exists_id`），调用仓库切换点赞并返回新状态与计数。
+
+- Repository（位置：`app/repositories/article_like_repo.py`）：
+	- 声明：`class ArticleLikeRepo`，使用 `@staticmethod`。
+	- 主要方法：`user_liked`, `count_likes`, `toggle_like`, `list_likes_by_user`。
+	- 实现要点：基于 `AsyncSession` + SQLAlchemy ORM（`app/modals/article_like.py`），使用软删除字段 `deleted_at` 表示取消点赞；`toggle_like` 尝试软删除 -> 复原已删 -> 插入新记录的顺序，保证幂等性。
+
+- 测试：已添加 `test/test_article_like.py`（使用 `httpx.AsyncClient` + `ASGITransport` 以避免事件循环冲突），覆盖：创建文章、点赞、取消点赞、删除文章。
+
+- 注意事项：
+	- 保持仓库风格与 `FriendLinkRepo` 一致（`AsyncSession`、`select()/scalars()`、`commit()`）。
+	- 并发风险：count 操作会查询实时计数，如需高性能可在 `article` 表维护聚合 `like_count` 并在事务中更新。
+	- 防刷：考虑在 service 层或网关加入速率限制/频率校验。
+
