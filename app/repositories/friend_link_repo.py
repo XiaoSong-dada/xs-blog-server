@@ -1,6 +1,6 @@
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.modals.friend_link import FriendLink
+from app.models.friend_link import FriendLink
 from typing import Optional
 from sqlalchemy import bindparam
 from app.schemas.friend_link import (

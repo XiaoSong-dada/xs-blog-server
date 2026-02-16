@@ -19,6 +19,9 @@
 已有数据库
 - `db/` - 数据库升级以及已有数据库
 
+已有映射模型
+- `app/modals` - ORM映射模型
+
 
 ## 编码决策
 
@@ -59,6 +62,16 @@
 	- 写入操作由 repository 执行后在 repository 或 service 中调用 `await db.commit()` / `await db.refresh(obj)`，或让调用方统一管理事务（保持一致风格）。
 	- 避免新增同步 `psycopg` 直接调用风格（项目中仍有旧代码使用 psycopg，但新代码应遵循异步 SQLAlchemy 风格以便与 FastAPI 的 async 路由配合）。
 	- 使用 `ON CONFLICT`、软删除（`deleted_at`）等 DB 约束时，优先用 SQLAlchemy 表达式或原始 SQL 在 AsyncSession 中执行，以保证兼容性与可读性。
+
+## ORM 使用约定
+
+- **异步 ORM**：统一使用 SQLAlchemy ORM 的异步模式（`AsyncSession` + `asyncpg`），避免同步 DB 调用。
+- **模型位置**：所有 ORM 模型放在 `app/models`，模型继承 `ORMBase`（必要时混入 `TimestampMixin` 等）。
+- **软删除**：使用 `deleted_at` 字段表示软删除，常用查询需加 `deleted_at IS NULL` 以表示“有效”记录。
+- **仓库/服务分层**：数据访问放 `app/repositories`（返回 ORM 实体或 dict），业务组合与事务放 `app/services`（Service 调用 Repo 并负责校验/事务边界）。
+- **切换类操作（例如 like/bookmark）**：建议 Repo 在事务内按顺序实现：先尝试软删除（取消），再尝试复原已删记录（恢复），若都未命中则插入新记录；返回 `(状态: bool, 计数: int)`。
+- **事务与并发**：复杂并发场景可使用 `SELECT ... FOR UPDATE` 行级锁或在事务内按照上面顺序操作，避免重复插入或竞态。
+- **测试与迁移**：对新增模型添加 Alembic 迁移并编写对应单元测试（包含并发/幂等性用例）。
 
 示例（toggle_like 推荐签名，放在 `app/repositories/article_like_repo.py`）：
 

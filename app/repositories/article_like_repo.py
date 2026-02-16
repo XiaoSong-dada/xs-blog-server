@@ -4,7 +4,7 @@ from typing import Tuple, List
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modals.article_like import ArticleLike
+from app.models.article_like import ArticleLike
 
 
 class ArticleLikeRepo:

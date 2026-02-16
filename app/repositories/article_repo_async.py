@@ -6,8 +6,8 @@ from uuid import UUID
 from sqlalchemy import select, func, update, text, exists, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modals.article import Article as ArticleModel
-from app.modals.article_like import ArticleLike
+from app.models.article import Article as ArticleModel
+from app.models.article_like import ArticleLike
 from app.schemas.article import (
     Article,
     ArticleQuery,

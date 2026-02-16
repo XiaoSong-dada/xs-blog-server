@@ -6,7 +6,7 @@ from app.schemas.friend_link import (
     FriendLinkUpdateRequest,
     FriendLinkCreate,
 )
-from app.modals.friend_link import FriendLink
+from app.models.friend_link import FriendLink
 from typing import Optional
 from app.core.exceptions import AppError
 from fastapi import status
