@@ -25,6 +25,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.deps import get_db
 from app.security.permissions import require_login
 from app.services.article_like_service import ArticleLikeService
+from app.services.article_bookmark_service import ArticleBookmarkService
+from app.core.exceptions import AppError
 from app.security.permissions import require_admin, require_login_optional
 from typing import List
 
@@ -146,3 +148,32 @@ async def like_article(
         code=status.HTTP_200_OK,
         data={"liked": liked, "like_count": count},
     )
+
+
+@router.post("/{article_id}/bookmark", response_model=SuccessResponse)
+async def bookmark_article(
+    article_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_login),
+):
+    try:
+        bookmarked, count = await ArticleBookmarkService.toggle_bookmark(db, _user.user_id, article_id)
+    except AppError:
+        return ErrorResponse(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
+
+    return SuccessResponse(
+        message="ok",
+        code=status.HTTP_200_OK,
+        data={"bookmarked": bookmarked, "bookmark_count": count},
+    )
+
+
+@router.get("/bookmarks/list", response_model=SuccessResponse)
+async def get_my_bookmarks(
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_login),
+    limit: int = 20,
+    offset: int = 0,
+):
+    items = await ArticleBookmarkService.list_user_bookmarks(db, _user.user_id, limit=limit, offset=offset)
+    return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=items)
