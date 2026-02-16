@@ -334,12 +334,12 @@ class ArticleRepoAsync:
                     WHERE al.article_id = a.id AND al.deleted_at IS NULL
                 ), 0) AS like_count,
                 CASE
-                    WHEN :user_id IS NULL THEN FALSE
+                    WHEN CAST(:user_id AS uuid) IS NULL THEN FALSE
                     ELSE EXISTS (
                         SELECT 1
                         FROM public.article_like al2
                         WHERE al2.article_id = a.id
-                          AND al2.user_id = :user_id
+                          AND al2.user_id = CAST(:user_id AS uuid)
                           AND al2.deleted_at IS NULL
                     )
                 END AS liked,
