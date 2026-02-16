@@ -29,6 +29,75 @@ from app.schemas.article import (
 )
 from fastapi import status
 from app.utils.datetime_utils import utc_now
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.repositories.article_repo_async import ArticleRepoAsync
+
+
+class ArticleService:
+    @staticmethod
+    async def get_article_page(
+        db: AsyncSession,
+        search: ArticleQuery | None = None,
+        current_user_id: UUID | None = None,
+    ) -> dict:
+        search = search or ArticleQuery()
+
+        article, total = await ArticleRepoAsync.list_article(
+            db,
+            limit=search.limit,
+            offset=search.offset,
+            search=search,
+            user_id=current_user_id,
+        )
+
+        return {
+            "data": [a.model_dump() for a in article],
+            "total": total,
+            "limit": search.limit,
+            "offset": search.offset,
+        }
+
+    @staticmethod
+    async def get_publish_article_page(
+        db: AsyncSession,
+        search: ArticleQuery | None = None,
+        current_user_id: UUID | None = None,
+    ) -> dict:
+        search = search or ArticleQuery()
+
+        article, total = await ArticleRepoAsync.list_publish_article(
+            db,
+            limit=search.limit,
+            offset=search.offset,
+            search=search,
+            user_id=current_user_id,
+        )
+
+        return {
+            "data": [a.model_dump() for a in article],
+            "total": total,
+            "limit": search.limit,
+            "offset": search.offset,
+        }
+
+    @staticmethod
+    async def search_publish_article(
+        db: AsyncSession,
+        query: ArticleSearchQuery,
+        current_user_id: UUID | None = None,
+    ) -> dict:
+        article, total = await ArticleRepoAsync.search_article(
+            db,
+            query,
+            user_id=current_user_id,
+        )
+
+        return {
+            "data": [a.model_dump() for a in article],
+            "total": total,
+            "limit": query.limit,
+            "offset": query.offset,
+        }
 
 
 def get_article_page(search: ArticleQuery | None = None):

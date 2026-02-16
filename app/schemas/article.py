@@ -14,6 +14,8 @@ class Article(Base):
     slug: str
     content_md: str
     view_count: int
+    like_count: int = 0
+    liked: bool = False
     created_at: datetime
     updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
@@ -69,6 +71,8 @@ class ArticleSearchOut(Base):
     title: str
     published_at: Optional[datetime] = None
     view_count: int
+    like_count: int = 0
+    liked: bool = False
     rank: Optional[float] = None
     snippet: Optional[str] = None
     hit_title: Optional[bool] = None

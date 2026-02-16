@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, func, update, text
+from sqlalchemy import select, func, update, text, exists, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modals.article import Article as ArticleModel
+from app.modals.article_like import ArticleLike
 from app.schemas.article import (
     Article,
     ArticleQuery,
@@ -28,6 +29,7 @@ class ArticleRepoAsync:
         limit: int = 10,
         offset: int = 0,
         search: Optional[ArticleQuery] = None,
+        user_id: Optional[UUID] = None,
     ) -> tuple[list[Article], int]:
         conditions = []
         if search:
@@ -48,17 +50,53 @@ class ArticleRepoAsync:
         total = await db.scalar(total_stmt)
         total = int(total or 0)
 
+        like_count_subquery = (
+            select(func.count())
+            .select_from(ArticleLike)
+            .where(
+                ArticleLike.article_id == ArticleModel.id,
+                ArticleLike.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
+        liked_expr = literal(False)
+        if user_id is not None:
+            liked_expr = exists(
+                select(1)
+                .select_from(ArticleLike)
+                .where(
+                    ArticleLike.article_id == ArticleModel.id,
+                    ArticleLike.user_id == user_id,
+                    ArticleLike.deleted_at.is_(None),
+                )
+            )
+
         items_stmt = (
-            select(ArticleModel)
+            select(
+                ArticleModel.id,
+                ArticleModel.author_id,
+                ArticleModel.title,
+                ArticleModel.slug,
+                ArticleModel.content_md,
+                ArticleModel.view_count,
+                func.coalesce(like_count_subquery, 0).label("like_count"),
+                liked_expr.label("liked"),
+                ArticleModel.created_at,
+                ArticleModel.updated_at,
+                ArticleModel.published_at,
+                ArticleModel.deleted_at,
+            )
             .where(*conditions)
             .order_by(ArticleModel.title.asc())
             .limit(limit)
             .offset(offset)
         )
         result = await db.execute(items_stmt)
-        items = result.scalars().all()
+        items = result.all()
 
-        return [Article.model_validate(x) for x in items], total
+        return [Article(**dict(r._mapping)) for r in items], total
 
     @staticmethod
     async def list_publish_article(
@@ -66,6 +104,7 @@ class ArticleRepoAsync:
         limit: int = 10,
         offset: int = 0,
         search: Optional[ArticleQuery] = None,
+        user_id: Optional[UUID] = None,
     ) -> tuple[list[Article], int]:
         conditions = [ArticleModel.deleted_at.is_(None), ArticleModel.published_at.is_not(None)]
         if search:
@@ -80,17 +119,53 @@ class ArticleRepoAsync:
         total = await db.scalar(total_stmt)
         total = int(total or 0)
 
+        like_count_subquery = (
+            select(func.count())
+            .select_from(ArticleLike)
+            .where(
+                ArticleLike.article_id == ArticleModel.id,
+                ArticleLike.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
+        liked_expr = literal(False)
+        if user_id is not None:
+            liked_expr = exists(
+                select(1)
+                .select_from(ArticleLike)
+                .where(
+                    ArticleLike.article_id == ArticleModel.id,
+                    ArticleLike.user_id == user_id,
+                    ArticleLike.deleted_at.is_(None),
+                )
+            )
+
         items_stmt = (
-            select(ArticleModel)
+            select(
+                ArticleModel.id,
+                ArticleModel.author_id,
+                ArticleModel.title,
+                ArticleModel.slug,
+                ArticleModel.content_md,
+                ArticleModel.view_count,
+                func.coalesce(like_count_subquery, 0).label("like_count"),
+                liked_expr.label("liked"),
+                ArticleModel.created_at,
+                ArticleModel.updated_at,
+                ArticleModel.published_at,
+                ArticleModel.deleted_at,
+            )
             .where(*conditions)
             .order_by(ArticleModel.title.asc())
             .limit(limit)
             .offset(offset)
         )
         result = await db.execute(items_stmt)
-        items = result.scalars().all()
+        items = result.all()
 
-        return [Article.model_validate(x) for x in items], total
+        return [Article(**dict(r._mapping)) for r in items], total
 
     @staticmethod
     async def detail_article_by_slug(db: AsyncSession, slug: str) -> Optional[Article]:
@@ -237,7 +312,7 @@ class ArticleRepoAsync:
 
     @staticmethod
     async def search_article(
-        db: AsyncSession, query: ArticleSearchQuery
+        db: AsyncSession, query: ArticleSearchQuery, user_id: Optional[UUID] = None
     ) -> tuple[list[ArticleSearchOut], int]:
         kw = (query.kw or "").strip()
         if not kw:
@@ -254,6 +329,20 @@ class ArticleRepoAsync:
                 a.title,
                 a.published_at,
                 a.view_count,
+                COALESCE((
+                    SELECT COUNT(*) FROM public.article_like al
+                    WHERE al.article_id = a.id AND al.deleted_at IS NULL
+                ), 0) AS like_count,
+                CASE
+                    WHEN :user_id IS NULL THEN FALSE
+                    ELSE EXISTS (
+                        SELECT 1
+                        FROM public.article_like al2
+                        WHERE al2.article_id = a.id
+                          AND al2.user_id = :user_id
+                          AND al2.deleted_at IS NULL
+                    )
+                END AS liked,
                 ts_rank_cd(a.search_vector, q.query) AS rank,
                 ts_headline(
                     'chinese_zh',
@@ -288,7 +377,12 @@ class ArticleRepoAsync:
 
         rows = await db.execute(
             data_stmt,
-            {"kw": kw, "limit": query.limit, "offset": query.offset},
+            {
+                "kw": kw,
+                "limit": query.limit,
+                "offset": query.offset,
+                "user_id": str(user_id) if user_id is not None else None,
+            },
         )
         items = [ArticleSearchOut(**dict(r._mapping)) for r in rows.fetchall()]
 

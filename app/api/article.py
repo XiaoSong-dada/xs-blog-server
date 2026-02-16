@@ -18,13 +18,14 @@ from app.services.article_service import (
     publish_acticle,
     get_article_by_id,
     batch_publish_acticle,
+    ArticleService,
 )
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.deps import get_db
 from app.security.permissions import require_login
 from app.services.article_like_service import ArticleLikeService
-from app.security.permissions import require_admin
+from app.security.permissions import require_admin, require_login_optional
 from typing import List
 
 router = APIRouter()
@@ -32,9 +33,18 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=PaginatedResponse)
-def list_article(query: ArticleQuery = Depends()):
+async def list_article(
+    query: ArticleQuery = Depends(),
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB | None = Depends(require_login_optional),
+):
     logger.info("query: %s", query)
-    article_data = get_article_page(query)
+    current_user_id = _user.user_id if _user else None
+    article_data = await ArticleService.get_article_page(
+        db,
+        query,
+        current_user_id=current_user_id,
+    )
     return PaginatedResponse(message="ok", code=status.HTTP_200_OK, **article_data)
 
 

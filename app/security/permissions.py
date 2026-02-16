@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException
-from app.security.auth import get_current_user
+from app.security.auth import get_current_user, get_current_user_optional
 
 
 def require_admin(user=Depends(get_current_user)):
@@ -9,4 +9,8 @@ def require_admin(user=Depends(get_current_user)):
 
 
 def require_login(user=Depends(get_current_user)):
+    return user
+
+
+def require_login_optional(user=Depends(get_current_user_optional)):
     return user
