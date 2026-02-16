@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article import Article as ArticleModel
 from app.models.article_like import ArticleLike
+from app.models.article_bookmark import ArticleBookmark
 from app.schemas.article import (
     Article,
     ArticleQuery,
@@ -61,7 +62,19 @@ class ArticleRepoAsync:
             .scalar_subquery()
         )
 
+        bookmark_count_subquery = (
+            select(func.count())
+            .select_from(ArticleBookmark)
+            .where(
+                ArticleBookmark.article_id == ArticleModel.id,
+                ArticleBookmark.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
         liked_expr = literal(False)
+        bookmarked_expr = literal(False)
         if user_id is not None:
             liked_expr = exists(
                 select(1)
@@ -70,6 +83,15 @@ class ArticleRepoAsync:
                     ArticleLike.article_id == ArticleModel.id,
                     ArticleLike.user_id == user_id,
                     ArticleLike.deleted_at.is_(None),
+                )
+            )
+            bookmarked_expr = exists(
+                select(1)
+                .select_from(ArticleBookmark)
+                .where(
+                    ArticleBookmark.article_id == ArticleModel.id,
+                    ArticleBookmark.user_id == user_id,
+                    ArticleBookmark.deleted_at.is_(None),
                 )
             )
 
@@ -83,6 +105,8 @@ class ArticleRepoAsync:
                 ArticleModel.view_count,
                 func.coalesce(like_count_subquery, 0).label("like_count"),
                 liked_expr.label("liked"),
+                func.coalesce(bookmark_count_subquery, 0).label("bookmark_count"),
+                bookmarked_expr.label("bookmarked"),
                 ArticleModel.created_at,
                 ArticleModel.updated_at,
                 ArticleModel.published_at,
@@ -130,7 +154,19 @@ class ArticleRepoAsync:
             .scalar_subquery()
         )
 
+        bookmark_count_subquery = (
+            select(func.count())
+            .select_from(ArticleBookmark)
+            .where(
+                ArticleBookmark.article_id == ArticleModel.id,
+                ArticleBookmark.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
         liked_expr = literal(False)
+        bookmarked_expr = literal(False)
         if user_id is not None:
             liked_expr = exists(
                 select(1)
@@ -139,6 +175,15 @@ class ArticleRepoAsync:
                     ArticleLike.article_id == ArticleModel.id,
                     ArticleLike.user_id == user_id,
                     ArticleLike.deleted_at.is_(None),
+                )
+            )
+            bookmarked_expr = exists(
+                select(1)
+                .select_from(ArticleBookmark)
+                .where(
+                    ArticleBookmark.article_id == ArticleModel.id,
+                    ArticleBookmark.user_id == user_id,
+                    ArticleBookmark.deleted_at.is_(None),
                 )
             )
 
@@ -152,6 +197,8 @@ class ArticleRepoAsync:
                 ArticleModel.view_count,
                 func.coalesce(like_count_subquery, 0).label("like_count"),
                 liked_expr.label("liked"),
+                func.coalesce(bookmark_count_subquery, 0).label("bookmark_count"),
+                bookmarked_expr.label("bookmarked"),
                 ArticleModel.created_at,
                 ArticleModel.updated_at,
                 ArticleModel.published_at,
@@ -333,6 +380,10 @@ class ArticleRepoAsync:
                     SELECT COUNT(*) FROM public.article_like al
                     WHERE al.article_id = a.id AND al.deleted_at IS NULL
                 ), 0) AS like_count,
+                COALESCE((
+                    SELECT COUNT(*) FROM public.article_bookmark ab
+                    WHERE ab.article_id = a.id AND ab.deleted_at IS NULL
+                ), 0) AS bookmark_count,
                 CASE
                     WHEN CAST(:user_id AS uuid) IS NULL THEN FALSE
                     ELSE EXISTS (
@@ -343,6 +394,16 @@ class ArticleRepoAsync:
                           AND al2.deleted_at IS NULL
                     )
                 END AS liked,
+                CASE
+                    WHEN CAST(:user_id AS uuid) IS NULL THEN FALSE
+                    ELSE EXISTS (
+                        SELECT 1
+                        FROM public.article_bookmark ab2
+                        WHERE ab2.article_id = a.id
+                          AND ab2.user_id = CAST(:user_id AS uuid)
+                          AND ab2.deleted_at IS NULL
+                    )
+                END AS bookmarked,
                 ts_rank_cd(a.search_vector, q.query) AS rank,
                 ts_headline(
                     'chinese_zh',
