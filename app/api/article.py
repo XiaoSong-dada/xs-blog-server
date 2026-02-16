@@ -19,6 +19,11 @@ from app.services.article_service import (
     get_article_by_id,
     batch_publish_acticle,
 )
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.deps import get_db
+from app.security.permissions import require_login
+from app.services.article_like_service import ArticleLikeService
 from app.security.permissions import require_admin
 from typing import List
 
@@ -113,3 +118,21 @@ def batch_publish(id_array: list[str], _user: UserInDB = Depends(require_admin))
             message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+
+
+@router.post("/{article_id}/like", response_model=SuccessResponse)
+async def like_article(
+    article_id: str,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_login),
+):
+    try:
+        liked, count = await ArticleLikeService.toggle_like(db, _user.user_id, article_id)
+    except ValueError:
+        return ErrorResponse(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
+
+    return SuccessResponse(
+        message="ok",
+        code=status.HTTP_200_OK,
+        data={"liked": liked, "like_count": count},
+    )
