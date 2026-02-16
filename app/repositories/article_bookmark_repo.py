@@ -5,6 +5,7 @@ from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.article_bookmark import ArticleBookmark
+from app.models.article import Article
 
 
 class ArticleBookmarkRepo:
@@ -82,9 +83,20 @@ class ArticleBookmarkRepo:
 
     @staticmethod
     async def list_bookmarks_by_user(db: AsyncSession, user_id: str, limit: int = 20, offset: int = 0) -> List[dict]:
+        # join with Article to return article fields (title, slug, content_md)
         stmt = (
-            select(ArticleBookmark.id, ArticleBookmark.article_id, ArticleBookmark.user_id, ArticleBookmark.created_at)
-            .where(ArticleBookmark.user_id == user_id, ArticleBookmark.deleted_at.is_(None))
+            select(
+                ArticleBookmark.id,
+                ArticleBookmark.article_id,
+                ArticleBookmark.user_id,
+                ArticleBookmark.created_at,
+                Article.title,
+                Article.slug,
+                Article.content_md,
+            )
+            .select_from(ArticleBookmark)
+            .join(Article, Article.id == ArticleBookmark.article_id)
+            .where(ArticleBookmark.user_id == user_id, ArticleBookmark.deleted_at.is_(None), Article.deleted_at.is_(None))
             .order_by(ArticleBookmark.created_at.desc())
             .limit(limit)
             .offset(offset)
