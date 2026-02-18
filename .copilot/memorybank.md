@@ -129,3 +129,43 @@ class ArticleLikeRepo:
 	- 并发风险：count 操作会查询实时计数，如需高性能可在 `article` 表维护聚合 `like_count` 并在事务中更新。
 	- 防刷：考虑在 service 层或网关加入速率限制/频率校验。
 
+## 评论功能（comment）
+
+- 目标：为文章提供评论线程（root 评论 + 回复）、用户信息（昵称/头像）展示、以及按文章返回评论总数。
+
+- 路由与接口（位置：`app/api/comment.py`）
+	- `GET /api/{article_id}/comments`：分页返回文章评论线程（每条 root comment + replies 列表），响应采用 `PaginatedResponse`。
+	- `POST /api/{article_id}/comments`：创建 root 评论，需要登录，返回新评论对象。
+	- `POST /api/{article_id}/comments/{comment_id}/reply`：基于已有评论创建回复，需要登录，返回新回复对象。
+
+- 后端实现要点：
+	- ORM：`app/models/comment.py`（字段：`id, article_id, user_id, content, parent_id, root_id, reply_to_user_id, created_at, updated_at, deleted_at`，软删除 `deleted_at`）。
+	- 仓库：`app/repositories/comment_repo.py`（异步实现）：
+		- `list_article_threads(db, article_id, limit, offset)`：查询 root 评论并批量查询属于这些 root 的回复，使用 `join(User)` 将 `username/nick_name/avatar_url` 一并返回，按时间排序（root 降序、回复升序）。
+		- `create_root_comment` / `create_reply_comment`：插入并返回带用户信息的 comment dict（通过 `_get_comment_with_user` join 查询）。
+	- 服务：`app/services/comment_service.py`：做参数/UUID 校验、文章存在性检查（调用 ArticleRepoAsync.exists_id）以及业务组合（返回适配前端的 dict）。
+	- API 层：使用 `require_login` 验证用户，捕获 `AppError` 统一返回 `ErrorResponse`。
+
+- 文章评论计数（article.comment_count）：
+	- 为了列表页展示，已在 `app/repositories/article_repo_async.py` 的 `list_article`、`list_publish_article` 和 `search_article` 中加入 `comment_count` 子查询（统计 `comment.deleted_at IS NULL`）。
+	- `app/schemas/article.py` 的 `Article` / `ArticleSearchOut` 新增 `comment_count` 字段以透传给前端。
+
+- 前端集成（web）：
+	- 类型：`src/types/main.ts` 增加 `IComment`, `ICommentThread` 以及在 `IArticle`/`IArticleSearchList` 中加入 `comment_count`。
+	- API：`src/api/article/article.ts` 增加 `getArticleComments`, `createArticleComment`, `replyArticleComment`。
+	- Hook：`src/hook/article/useArticle.ts` 或 `useArticleComment` 提供 `fetchComments`, `createComment`, `replyComment`, `loadMore` 等方法并维护 `threads`、`loading`、`submitting`、`hasMore`。
+	- 组件：实现并抽象为组件 `src/components/article/comment.list.vue`, `comment.item.vue`, `comment.body.vue`（头像+内容复用），并在文章详情页 `src/views/article/detail.vue` 中引用。
+
+- 测试与运行：
+	- 已添加集成测试 `test/test_comment.py`（流程：登录 -> 创建文章 -> 发 root 评论 -> 回复 -> 列表断言），使用项目的 docker-compose 环境运行：
+		```
+		docker-compose run --rm api pytest test/test_comment.py -q
+		```
+	- 对文章列表 `comment_count` 的回归断言已加入 `test/test_article.py`。
+
+- 注意事项与优化建议：
+	- 当前实现通过子查询实时统计 `comment_count`，在高写入量场景可考虑在 `article` 表维护聚合列来减少查询开销（需要在写评论时在事务中更新聚合列）。
+	- 回复显示已通过 join 用户表获取 `nick_name` 和 `avatar_url`，若需要显示被回复用户的展示名，reply 对象应同时包含 `reply_to_user_id` 对应用户的 `nick_name`（可在仓库层额外 join）。
+	- 前端可增加相对时间格式化、图片懒加载与头像占位图以提升体验。
+
+
