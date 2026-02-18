@@ -18,6 +18,7 @@ class Article(Base):
     liked: bool = False
     bookmark_count: int = 0
     bookmarked: bool = False
+    comment_count: int = 0
     created_at: datetime
     updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
@@ -77,6 +78,7 @@ class ArticleSearchOut(Base):
     liked: bool = False
     bookmark_count: int = 0
     bookmarked: bool = False
+    comment_count: int = 0
     rank: Optional[float] = None
     snippet: Optional[str] = None
     hit_title: Optional[bool] = None

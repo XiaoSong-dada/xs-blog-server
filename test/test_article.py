@@ -12,6 +12,10 @@ def test_get_article_list():
     )
     r = client.get("/api/article", params=payload)
     assert r.status_code == 200
+    body = r.json()
+    items = body.get("data") or []
+    if items:
+        assert "comment_count" in items[0]
 
 
 def test_get_article_detail_by_slug_db_not_has():

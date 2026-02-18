@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.article import Article as ArticleModel
 from app.models.article_like import ArticleLike
 from app.models.article_bookmark import ArticleBookmark
+from app.models.comment import Comment
 from app.schemas.article import (
     Article,
     ArticleQuery,
@@ -73,6 +74,17 @@ class ArticleRepoAsync:
             .scalar_subquery()
         )
 
+        comment_count_subquery = (
+            select(func.count())
+            .select_from(Comment)
+            .where(
+                Comment.article_id == ArticleModel.id,
+                Comment.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
         liked_expr = literal(False)
         bookmarked_expr = literal(False)
         if user_id is not None:
@@ -107,6 +119,7 @@ class ArticleRepoAsync:
                 liked_expr.label("liked"),
                 func.coalesce(bookmark_count_subquery, 0).label("bookmark_count"),
                 bookmarked_expr.label("bookmarked"),
+                func.coalesce(comment_count_subquery, 0).label("comment_count"),
                 ArticleModel.created_at,
                 ArticleModel.updated_at,
                 ArticleModel.published_at,
@@ -165,6 +178,17 @@ class ArticleRepoAsync:
             .scalar_subquery()
         )
 
+        comment_count_subquery = (
+            select(func.count())
+            .select_from(Comment)
+            .where(
+                Comment.article_id == ArticleModel.id,
+                Comment.deleted_at.is_(None),
+            )
+            .correlate(ArticleModel)
+            .scalar_subquery()
+        )
+
         liked_expr = literal(False)
         bookmarked_expr = literal(False)
         if user_id is not None:
@@ -199,6 +223,7 @@ class ArticleRepoAsync:
                 liked_expr.label("liked"),
                 func.coalesce(bookmark_count_subquery, 0).label("bookmark_count"),
                 bookmarked_expr.label("bookmarked"),
+                func.coalesce(comment_count_subquery, 0).label("comment_count"),
                 ArticleModel.created_at,
                 ArticleModel.updated_at,
                 ArticleModel.published_at,
@@ -384,6 +409,10 @@ class ArticleRepoAsync:
                     SELECT COUNT(*) FROM public.article_bookmark ab
                     WHERE ab.article_id = a.id AND ab.deleted_at IS NULL
                 ), 0) AS bookmark_count,
+                COALESCE((
+                    SELECT COUNT(*) FROM public.comment c
+                    WHERE c.article_id = a.id AND c.deleted_at IS NULL
+                ), 0) AS comment_count,
                 CASE
                     WHEN CAST(:user_id AS uuid) IS NULL THEN FALSE
                     ELSE EXISTS (
