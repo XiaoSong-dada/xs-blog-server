@@ -7,9 +7,39 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.comment import Comment
+from app.models.user import User
 
 
 class CommentRepo:
+    @staticmethod
+    async def _get_comment_with_user(db: AsyncSession, comment_id: UUID) -> dict | None:
+        stmt = (
+            select(Comment, User.username, User.nick_name, User.avatar_url)
+            .join(User, User.user_id == Comment.user_id)
+            .where(Comment.id == comment_id, Comment.deleted_at.is_(None))
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        row = result.first()
+        if not row:
+            return None
+
+        comment = row[0]
+        return {
+            "id": comment.id,
+            "article_id": comment.article_id,
+            "user_id": comment.user_id,
+            "content": comment.content,
+            "parent_id": comment.parent_id,
+            "root_id": comment.root_id,
+            "reply_to_user_id": comment.reply_to_user_id,
+            "created_at": comment.created_at,
+            "updated_at": comment.updated_at,
+            "username": row[1],
+            "nick_name": row[2],
+            "avatar_url": row[3],
+        }
+
     @staticmethod
     async def get_active_comment_by_id(
         db: AsyncSession, comment_id: str
@@ -39,8 +69,8 @@ class CommentRepo:
         )
         db.add(obj)
         await db.commit()
-        await db.refresh(obj)
-        return {
+        item = await CommentRepo._get_comment_with_user(db, obj.id)
+        return item or {
             "id": obj.id,
             "article_id": obj.article_id,
             "user_id": obj.user_id,
@@ -50,6 +80,9 @@ class CommentRepo:
             "reply_to_user_id": obj.reply_to_user_id,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
+            "username": None,
+            "nick_name": None,
+            "avatar_url": None,
         }
 
     @staticmethod
@@ -72,8 +105,8 @@ class CommentRepo:
         )
         db.add(obj)
         await db.commit()
-        await db.refresh(obj)
-        return {
+        item = await CommentRepo._get_comment_with_user(db, obj.id)
+        return item or {
             "id": obj.id,
             "article_id": obj.article_id,
             "user_id": obj.user_id,
@@ -83,6 +116,9 @@ class CommentRepo:
             "reply_to_user_id": obj.reply_to_user_id,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
+            "username": None,
+            "nick_name": None,
+            "avatar_url": None,
         }
 
     @staticmethod
@@ -101,22 +137,24 @@ class CommentRepo:
         total = int(total or 0)
 
         top_stmt = (
-            select(Comment)
+            select(Comment, User.username, User.nick_name, User.avatar_url)
+            .join(User, User.user_id == Comment.user_id)
             .where(*base_conditions)
             .order_by(Comment.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
         top_res = await db.execute(top_stmt)
-        top_comments = top_res.scalars().all()
+        top_rows = top_res.all()
 
-        if not top_comments:
+        if not top_rows:
             return [], total
 
-        root_ids = [item.id for item in top_comments]
+        root_ids = [item[0].id for item in top_rows]
 
         replies_stmt = (
-            select(Comment)
+            select(Comment, User.username, User.nick_name, User.avatar_url)
+            .join(User, User.user_id == Comment.user_id)
             .where(
                 Comment.article_id == article_uuid,
                 Comment.deleted_at.is_(None),
@@ -126,40 +164,48 @@ class CommentRepo:
             .order_by(Comment.created_at.asc())
         )
         replies_res = await db.execute(replies_stmt)
-        replies = replies_res.scalars().all()
+        replies = replies_res.all()
 
         replies_by_root: dict[UUID, list[dict]] = {}
         for row in replies:
-            replies_by_root.setdefault(row.root_id, []).append(
+            comment = row[0]
+            replies_by_root.setdefault(comment.root_id, []).append(
                 {
-                    "id": row.id,
-                    "article_id": row.article_id,
-                    "user_id": row.user_id,
-                    "content": row.content,
-                    "parent_id": row.parent_id,
-                    "root_id": row.root_id,
-                    "reply_to_user_id": row.reply_to_user_id,
-                    "created_at": row.created_at,
-                    "updated_at": row.updated_at,
+                    "id": comment.id,
+                    "article_id": comment.article_id,
+                    "user_id": comment.user_id,
+                    "content": comment.content,
+                    "parent_id": comment.parent_id,
+                    "root_id": comment.root_id,
+                    "reply_to_user_id": comment.reply_to_user_id,
+                    "created_at": comment.created_at,
+                    "updated_at": comment.updated_at,
+                    "username": row[1],
+                    "nick_name": row[2],
+                    "avatar_url": row[3],
                 }
             )
 
         items: list[dict] = []
-        for row in top_comments:
+        for row in top_rows:
+            comment = row[0]
             items.append(
                 {
                     "comment": {
-                        "id": row.id,
-                        "article_id": row.article_id,
-                        "user_id": row.user_id,
-                        "content": row.content,
-                        "parent_id": row.parent_id,
-                        "root_id": row.root_id,
-                        "reply_to_user_id": row.reply_to_user_id,
-                        "created_at": row.created_at,
-                        "updated_at": row.updated_at,
+                        "id": comment.id,
+                        "article_id": comment.article_id,
+                        "user_id": comment.user_id,
+                        "content": comment.content,
+                        "parent_id": comment.parent_id,
+                        "root_id": comment.root_id,
+                        "reply_to_user_id": comment.reply_to_user_id,
+                        "created_at": comment.created_at,
+                        "updated_at": comment.updated_at,
+                        "username": row[1],
+                        "nick_name": row[2],
+                        "avatar_url": row[3],
                     },
-                    "replies": replies_by_root.get(row.id, []),
+                    "replies": replies_by_root.get(comment.id, []),
                 }
             )
 
