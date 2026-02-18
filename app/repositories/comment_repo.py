@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from typing import Tuple
+from uuid import UUID, uuid4
+
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.comment import Comment
+
+
+class CommentRepo:
+    @staticmethod
+    async def get_active_comment_by_id(
+        db: AsyncSession, comment_id: str
+    ) -> Comment | None:
+        comment_uuid = UUID(comment_id)
+        stmt = (
+            select(Comment)
+            .where(Comment.id == comment_uuid, Comment.deleted_at.is_(None))
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    @staticmethod
+    async def create_root_comment(
+        db: AsyncSession, article_id: str, user_id: str, content: str
+    ) -> dict:
+        comment_id = uuid4()
+        obj = Comment(
+            id=comment_id,
+            article_id=UUID(article_id),
+            user_id=UUID(user_id),
+            content=content,
+            parent_id=None,
+            root_id=comment_id,
+            reply_to_user_id=None,
+        )
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return {
+            "id": obj.id,
+            "article_id": obj.article_id,
+            "user_id": obj.user_id,
+            "content": obj.content,
+            "parent_id": obj.parent_id,
+            "root_id": obj.root_id,
+            "reply_to_user_id": obj.reply_to_user_id,
+            "created_at": obj.created_at,
+            "updated_at": obj.updated_at,
+        }
+
+    @staticmethod
+    async def create_reply_comment(
+        db: AsyncSession,
+        article_id: str,
+        user_id: str,
+        parent_id: str,
+        root_id: str,
+        content: str,
+        reply_to_user_id: str | None,
+    ) -> dict:
+        obj = Comment(
+            article_id=UUID(article_id),
+            user_id=UUID(user_id),
+            content=content,
+            parent_id=UUID(parent_id),
+            root_id=UUID(root_id),
+            reply_to_user_id=UUID(reply_to_user_id) if reply_to_user_id else None,
+        )
+        db.add(obj)
+        await db.commit()
+        await db.refresh(obj)
+        return {
+            "id": obj.id,
+            "article_id": obj.article_id,
+            "user_id": obj.user_id,
+            "content": obj.content,
+            "parent_id": obj.parent_id,
+            "root_id": obj.root_id,
+            "reply_to_user_id": obj.reply_to_user_id,
+            "created_at": obj.created_at,
+            "updated_at": obj.updated_at,
+        }
+
+    @staticmethod
+    async def list_article_threads(
+        db: AsyncSession, article_id: str, limit: int = 10, offset: int = 0
+    ) -> Tuple[list[dict], int]:
+        article_uuid = UUID(article_id)
+        base_conditions = [
+            Comment.article_id == article_uuid,
+            Comment.deleted_at.is_(None),
+            Comment.parent_id.is_(None),
+        ]
+
+        total_stmt = select(func.count()).select_from(Comment).where(*base_conditions)
+        total = await db.scalar(total_stmt)
+        total = int(total or 0)
+
+        top_stmt = (
+            select(Comment)
+            .where(*base_conditions)
+            .order_by(Comment.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        top_res = await db.execute(top_stmt)
+        top_comments = top_res.scalars().all()
+
+        if not top_comments:
+            return [], total
+
+        root_ids = [item.id for item in top_comments]
+
+        replies_stmt = (
+            select(Comment)
+            .where(
+                Comment.article_id == article_uuid,
+                Comment.deleted_at.is_(None),
+                Comment.root_id.in_(root_ids),
+                Comment.parent_id.is_not(None),
+            )
+            .order_by(Comment.created_at.asc())
+        )
+        replies_res = await db.execute(replies_stmt)
+        replies = replies_res.scalars().all()
+
+        replies_by_root: dict[UUID, list[dict]] = {}
+        for row in replies:
+            replies_by_root.setdefault(row.root_id, []).append(
+                {
+                    "id": row.id,
+                    "article_id": row.article_id,
+                    "user_id": row.user_id,
+                    "content": row.content,
+                    "parent_id": row.parent_id,
+                    "root_id": row.root_id,
+                    "reply_to_user_id": row.reply_to_user_id,
+                    "created_at": row.created_at,
+                    "updated_at": row.updated_at,
+                }
+            )
+
+        items: list[dict] = []
+        for row in top_comments:
+            items.append(
+                {
+                    "comment": {
+                        "id": row.id,
+                        "article_id": row.article_id,
+                        "user_id": row.user_id,
+                        "content": row.content,
+                        "parent_id": row.parent_id,
+                        "root_id": row.root_id,
+                        "reply_to_user_id": row.reply_to_user_id,
+                        "created_at": row.created_at,
+                        "updated_at": row.updated_at,
+                    },
+                    "replies": replies_by_root.get(row.id, []),
+                }
+            )
+
+        return items, total
