@@ -28,7 +28,10 @@ class ArticleBookmarkRepo:
         stmt = (
             select(func.count())
             .select_from(ArticleBookmark)
-            .where(ArticleBookmark.article_id == article_id, ArticleBookmark.deleted_at.is_(None))
+            .where(
+                ArticleBookmark.article_id == article_id,
+                ArticleBookmark.deleted_at.is_(None),
+            )
         )
         cnt = await db.scalar(stmt)
         return int(cnt or 0)
@@ -82,8 +85,22 @@ class ArticleBookmarkRepo:
         return True, await ArticleBookmarkRepo.count_bookmarks(db, article_id)
 
     @staticmethod
-    async def list_bookmarks_by_user(db: AsyncSession, user_id: str, limit: int = 20, offset: int = 0) -> List[dict]:
+    async def list_bookmarks_by_user(
+        db: AsyncSession, user_id: str, limit: int = 20, offset: int = 0
+    ) -> Tuple[List[dict], int]:
         # join with Article to return article fields (title, slug, content_md)
+        conditions = [
+            ArticleBookmark.deleted_at.is_(None),
+            ArticleBookmark.user_id == user_id,
+            Article.deleted_at.is_(None),
+        ]
+
+        total_stmt = (
+            select(func.count()).select_from(ArticleBookmark).join(Article, Article.id == ArticleBookmark.article_id).where(*conditions)
+        )
+        total = await db.scalar(total_stmt)
+        total = int(total or 0)
+
         stmt = (
             select(
                 ArticleBookmark.id,
@@ -96,11 +113,15 @@ class ArticleBookmarkRepo:
             )
             .select_from(ArticleBookmark)
             .join(Article, Article.id == ArticleBookmark.article_id)
-            .where(ArticleBookmark.user_id == user_id, ArticleBookmark.deleted_at.is_(None), Article.deleted_at.is_(None))
+            .where(
+                ArticleBookmark.user_id == user_id,
+                ArticleBookmark.deleted_at.is_(None),
+                Article.deleted_at.is_(None),
+            )
             .order_by(ArticleBookmark.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
         res = await db.execute(stmt)
         rows = res.all()
-        return [dict(r._mapping) for r in rows]
+        return [dict(r._mapping) for r in rows], total

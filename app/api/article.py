@@ -139,7 +139,9 @@ async def like_article(
     _user: UserInDB = Depends(require_login),
 ):
     try:
-        liked, count = await ArticleLikeService.toggle_like(db, _user.user_id, article_id)
+        liked, count = await ArticleLikeService.toggle_like(
+            db, _user.user_id, article_id
+        )
     except ValueError:
         return ErrorResponse(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
 
@@ -157,7 +159,9 @@ async def bookmark_article(
     _user: UserInDB = Depends(require_login),
 ):
     try:
-        bookmarked, count = await ArticleBookmarkService.toggle_bookmark(db, _user.user_id, article_id)
+        bookmarked, count = await ArticleBookmarkService.toggle_bookmark(
+            db, _user.user_id, article_id
+        )
     except AppError:
         return ErrorResponse(message="文章不存在", code=status.HTTP_404_NOT_FOUND)
 
@@ -168,12 +172,26 @@ async def bookmark_article(
     )
 
 
-@router.get("/bookmarks/list", response_model=SuccessResponse)
+@router.get("/bookmarks/list", response_model=PaginatedResponse)
 async def get_my_bookmarks(
     db: AsyncSession = Depends(get_db),
     _user: UserInDB = Depends(require_login),
     limit: int = 20,
     offset: int = 0,
 ):
-    items = await ArticleBookmarkService.list_user_bookmarks(db, _user.user_id, limit=limit, offset=offset)
-    return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=items)
+    items, total = await ArticleBookmarkService.list_user_bookmarks(
+        db, _user.user_id, limit=limit, offset=offset
+    )
+
+    req = PaginatedResponse(
+        message="ok",
+        code=status.HTTP_200_OK,
+        data=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+    logger.info("req: %s", req)
+
+    return req
