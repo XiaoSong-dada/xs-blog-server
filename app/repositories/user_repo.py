@@ -3,6 +3,7 @@ from app.repositories.base import fetch_one, fetch_page, fetch_count
 from app.repositories.sql_builders.user_list import build_user_list_query
 import psycopg
 from app.repositories.base import execute
+from uuid import UUID
 
 
 # 获取用户
@@ -93,18 +94,20 @@ def list_users(
     return [UserInDB(**row) for row in rows], total
 
 
-def update_user(conn: psycopg.Connection, user: UserInDB) -> bool:
-    sql = """
+def update_user(conn: psycopg.Connection, user_id: UUID, changes: dict) -> bool:
+    allowed_fields = {"email", "nick_name", "avatar_url"}
+    updates = {k: v for k, v in changes.items() if k in allowed_fields}
+
+    if not updates:
+        return True
+
+    set_clause = ", ".join([f"{field} = %s" for field in updates.keys()])
+    sql = f"""
     UPDATE users
-    SET email = %s, nick_name = %s, avatar_url = %s
+    SET {set_clause}
     WHERE user_id = %s
     """
-    params = (
-        user.email,
-        user.nick_name,
-        user.avatar_url,
-        user.user_id,
-    )
+    params = tuple(updates.values()) + (user_id,)
     affected = execute(conn, sql, params)
     return affected == 1
 

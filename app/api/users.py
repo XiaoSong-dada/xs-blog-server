@@ -54,10 +54,9 @@ def get_user_by_name(_user: UserInDB = Depends(require_login)):
 
 
 @router.put("/owner/info", response_model=SuccessResponseBase)
-def update_user_info(user_update: UserUpdate, user: UserInDB = Depends(require_login)):
+async def update_user_info(user_update: UserUpdate, user: UserInDB = Depends(require_login)):
     logger.info("更新账号信息: %s", user_update)
-    updated_user = user.model_copy(update=user_update.model_dump(exclude_unset=True))
-    ok = update_user(updated_user)
+    ok = await update_user(user, user_update)
     if not ok:
         return ErrorResponse("用户信息更新失败", code=500)
     return SuccessResponseBase(message="ok", code=200)

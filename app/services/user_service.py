@@ -11,6 +11,7 @@ from app.repositories.user_repo import (
     check_email_exists,
 )
 from app.schemas.user import UserCreate, UserInDB, UserListQuery
+from app.schemas.user import UserUpdate
 from app.security.password import get_password_hash, verify_password
 from app.utils.verification import is_null_or_empty
 from fastapi import status
@@ -102,13 +103,32 @@ def get_user_detail_by_id(user_id: str) -> UserInDB:
     return user
 
 
-def update_user(user: UserInDB) -> bool:
+async def update_user(current_user: UserInDB, user_update: UserUpdate) -> bool:
     with transaction() as conn:
-        if check_email_exists(conn, user.email):
-            raise AppError("邮箱已被注册", code=409)
+        db_user = get_user_by_id(conn, str(current_user.user_id))
+        if not db_user:
+            raise AppError("用户未找到", code=404)
 
+        payload = user_update.model_dump(exclude_unset=True)
+        updatable_fields = ["email", "nick_name", "avatar_url"]
+        changes: dict = {}
 
-        ok = update_user_repo(conn, user)
+        for field in updatable_fields:
+            if field in payload and payload[field] != getattr(db_user, field):
+                changes[field] = payload[field]
+
+        if not changes:
+            return True
+
+        if "email" in changes:
+            new_email = changes["email"]
+            if new_email and check_email_exists(conn, new_email):
+                raise AppError("邮箱已被注册", code=409)
+
+            if not await verify_email_code(new_email, user_update.code):
+                raise AppError("验证码错误或已过期", code=status.HTTP_400_BAD_REQUEST)
+
+        ok = update_user_repo(conn, db_user.user_id, changes)
         if not ok:
             raise AppError("用户信息更新失败", code=500)
 

@@ -44,6 +44,7 @@ class UserUpdate(Base):
     email: Optional[str] = None
     nick_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    code: Optional[str] = None  # 用于修改邮箱时的验证码
 
 class UserUpdatePassword(Base):
     old_password:str
