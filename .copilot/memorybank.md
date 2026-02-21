@@ -10,6 +10,16 @@
 - **数据库：** PostgreSQL（通过 SQLAlchemy 连接）
 - **认证：** `app/security/jwt.py` 中的 JWT 令牌
 
+## 本地启动与测试方式（固定约定）
+
+- 项目使用 `docker compose` 启动，不使用本机直跑 `uvicorn`。
+- 启动命令：`docker compose up -d`。
+- 常用容器检查：`docker compose ps`。
+- API 日志查看：`docker compose logs -f api`。
+- 测试命令统一在 `api` 容器内执行，例如：
+	- 单测：`docker compose exec api pytest test/test_tag.py -v`
+	- 全量：`docker compose exec api pytest -v`
+
 ## 重要模块
 
 - `app/api` – 按功能分组的 API 端点（文章、用户等）。
@@ -167,5 +177,56 @@ class ArticleLikeRepo:
 	- 当前实现通过子查询实时统计 `comment_count`，在高写入量场景可考虑在 `article` 表维护聚合列来减少查询开销（需要在写评论时在事务中更新聚合列）。
 	- 回复显示已通过 join 用户表获取 `nick_name` 和 `avatar_url`，若需要显示被回复用户的展示名，reply 对象应同时包含 `reply_to_user_id` 对应用户的 `nick_name`（可在仓库层额外 join）。
 	- 前端可增加相对时间格式化、图片懒加载与头像占位图以提升体验。
+
+## 标签功能（tag）更新记录
+
+- 数据库结构：
+	- `db/init.sql` 新增 `tag` 表（`id/name/slug/created_at`，`name` 与 `slug` 唯一）。
+	- 新增 `article_tag` 关联表（`article_id + tag_id` 联合主键，双外键，`ON DELETE CASCADE`）。
+	- 新增索引：`idx_article_tag_tag_id`，用于按标签查文章。
+
+- ORM 模型：
+	- 新增 `app/models/tag.py` 与 `app/models/article_tag.py`。
+	- `app/models/article.py` 增加 `tags` 多对多关系（`secondary="article_tag"`，`lazy="selectin"`）。
+	- `app/models/__init__.py` 已导出 `Tag`、`ArticleTag`。
+
+- Schema 变更：
+	- 新增 `app/schemas/tag.py`（`TagCreate/TagUpdate/TagResponse/TagWithCountResponse`）。
+	- `app/schemas/article.py` 新增：
+		- `Article.tags`
+		- `ArticleCreated.tag_ids`
+		- `ArticleUpdate.tag_ids`
+		- `ArticleQuery.tag_id`（支持按标签筛选）
+
+- Repository 与查询：
+	- 新增 `app/repositories/tag_repo.py`（异步静态方法风格）：
+		- `create`, `delete`, `list_all`, `get_by_id`, `get_by_name`, `get_by_slug`, `get_tags_with_count`。
+	- `app/repositories/article_repo_async.py`：
+		- 列表/发布列表支持 `tag_id` 过滤。
+		- 列表返回中注入 `tags` 数据。
+		- 创建与更新文章时支持写入/重建 `article_tag` 关联。
+		- 详情查询使用 `selectinload(ArticleModel.tags)`。
+	- 同步 SQL 路径同步更新：`app/repositories/article_repo.py` 与 `app/repositories/sql_builders/article_list.py` 支持 `tags` 聚合与 `tag_id` 过滤。
+
+- Service 与 API：
+	- 新增 `app/services/tag_service.py`，采用 `AppError` 统一异常风格（404/409）。
+	- 新增 `app/api/tag.py`：
+		- `POST /api/tag`
+		- `GET /api/tag`
+		- `GET /api/tag/hot`
+		- `GET /api/tag/{tag_id}`
+		- `PUT /api/tag/{tag_id}`
+		- `DELETE /api/tag/{tag_id}`
+	- `app/api/__init__.py` 已注册 `tag_router`（前缀 `/tag`）。
+
+- 测试与验证：
+	- 新增/修正 `test/test_tag.py`，采用项目现有可运行模式：`httpx.AsyncClient + ASGITransport + 登录获取 Bearer token`。
+	- 已在 docker compose 环境验证通过：
+		- `docker compose exec api pytest test/test_tag.py -v`
+		- 结果：`4 passed`。
+
+- 实施注意：
+	- 项目当前很多接口在业务错误时返回 HTTP 200 + body 内 `code`（例如 404），标签接口测试已按该约定断言。
+	- 后续新增功能优先沿用异步 SQLAlchemy 风格，避免继续扩展同步 `psycopg` 路径。
 
 

@@ -10,29 +10,40 @@ from app.schemas.article import ArticleQuery, ArticleSearchQuery
 
 def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuery:
     base_select = """
-    SELECT id, author_id, title, slug, content_md, created_at, 
-    updated_at, published_at ,deleted_at, view_count  
-    FROM article
+    SELECT a.id, a.author_id, a.title, a.slug, a.content_md, a.created_at, 
+    a.updated_at, a.published_at ,a.deleted_at, a.view_count,
+    COALESCE(
+        (
+            SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+            FROM article_tag at
+            JOIN tag t ON at.tag_id = t.id
+            WHERE at.article_id = a.id
+        ),
+        '[]'::json
+    ) as tags
+    FROM article a
     """
-    base_count = "SELECT COUNT(*) FROM article"
+    base_count = "SELECT COUNT(*) FROM article a"
 
     q = QueryParts()
 
     if search.published_at == "1":
-        q.where_is_not_null("published_at")
+        q.where_is_not_null("a.published_at")
     elif search.published_at == "0":
-        q.where_is_null("published_at")
+        q.where_is_null("a.published_at")
 
     if search:
-        q.where_like("slug", search.slug)
-        q.where_like("title", search.title)
-        q.where_like("content_md", search.content_md)
-        q.where_is_null("deleted_at")
+        q.where_like("a.slug", search.slug)
+        q.where_like("a.title", search.title)
+        q.where_like("a.content_md", search.content_md)
+        q.where_is_null("a.deleted_at")
+        if search.tag_id:
+            q.where_custom("EXISTS (SELECT 1 FROM article_tag at WHERE at.article_id = a.id AND at.tag_id = %s)", search.tag_id)
 
     where = q.where_sql()
 
     # 注意：分页的 LIMIT/OFFSET 由 fetch_page 统一追加
-    data_sql = base_select + where + " ORDER BY title"
+    data_sql = base_select + where + " ORDER BY a.title"
     count_sql = base_count + where
 
     return BuiltQuery(data_sql=data_sql, count_sql=count_sql, params=tuple(q.params))
@@ -42,25 +53,36 @@ def build_publish_article_list_query(
     search: Optional[ArticleQuery] = None,
 ) -> BuiltQuery:
     base_select = """
-    SELECT id, author_id, title, slug, content_md, created_at, 
-    updated_at, published_at ,deleted_at, view_count  
-    FROM article
+    SELECT a.id, a.author_id, a.title, a.slug, a.content_md, a.created_at, 
+    a.updated_at, a.published_at ,a.deleted_at, a.view_count,
+    COALESCE(
+        (
+            SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+            FROM article_tag at
+            JOIN tag t ON at.tag_id = t.id
+            WHERE at.article_id = a.id
+        ),
+        '[]'::json
+    ) as tags
+    FROM article a
     """
-    base_count = "SELECT COUNT(*) FROM article"
+    base_count = "SELECT COUNT(*) FROM article a"
 
     q = QueryParts()
 
     if search:
-        q.where_like("slug", search.slug)
-        q.where_like("title", search.title)
-        q.where_like("content_md", search.content_md)
-        q.where_is_null("deleted_at")
-        q.where_is_not_null("published_at")
+        q.where_like("a.slug", search.slug)
+        q.where_like("a.title", search.title)
+        q.where_like("a.content_md", search.content_md)
+        q.where_is_null("a.deleted_at")
+        q.where_is_not_null("a.published_at")
+        if search.tag_id:
+            q.where_custom("EXISTS (SELECT 1 FROM article_tag at WHERE at.article_id = a.id AND at.tag_id = %s)", search.tag_id)
 
     where = q.where_sql()
 
     # 注意：分页的 LIMIT/OFFSET 由 fetch_page 统一追加
-    data_sql = base_select + where + " ORDER BY title"
+    data_sql = base_select + where + " ORDER BY a.title"
     count_sql = base_count + where
 
     return BuiltQuery(data_sql=data_sql, count_sql=count_sql, params=tuple(q.params))

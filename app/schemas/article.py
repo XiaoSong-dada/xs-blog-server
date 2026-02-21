@@ -1,7 +1,8 @@
 from app.schemas.base import Base
 from app.schemas.params import PageQuery
+from app.schemas.tag import TagResponse
 from uuid import UUID, uuid4
-from typing import Optional
+from typing import Optional, List
 from pydantic import Field
 from datetime import datetime
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ class Article(Base):
     updated_at: Optional[datetime] = None
     published_at: Optional[datetime] = None
     deleted_at: Optional[datetime] = None
+    tags: List[TagResponse] = Field(default_factory=list)
 
 
 class ArticleQuery(PageQuery):
@@ -30,6 +32,7 @@ class ArticleQuery(PageQuery):
     slug: Optional[str] = None
     content_md: Optional[str] = None
     published_at: Optional[str] = None
+    tag_id: Optional[UUID] = None
 
 
 class ArticleCreated(Base):
@@ -38,6 +41,7 @@ class ArticleCreated(Base):
     title: str
     slug: str
     content_md: str
+    tag_ids: Optional[List[UUID]] = None
 
 
 class ArticleUpdate(Base):
@@ -45,6 +49,7 @@ class ArticleUpdate(Base):
     title: str
     slug: str
     content_md: str
+    tag_ids: Optional[List[UUID]] = None
 
 
 class ArticleDelete(Base):

@@ -50,6 +50,10 @@ class QueryParts:
         if column:
             self.conditions.append(f"{column} IS NOT NULL")
 
+    def where_custom(self, condition: str, *args: Any) -> None:
+        self.conditions.append(condition)
+        self.params.extend(args)
+
     def where_sql(self) -> str:
         """返回拼好的 WHERE ...（无条件则返回空字符串）"""
         return (" WHERE " + " AND ".join(self.conditions)) if self.conditions else ""

@@ -1,12 +1,15 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, Text, Integer, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import ORMBase
 
+if TYPE_CHECKING:
+    from app.models.tag import Tag
 
 class Article(ORMBase):
     __tablename__ = "article"
@@ -35,4 +38,11 @@ class Article(ORMBase):
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    tags: Mapped[list["Tag"]] = relationship(
+        "Tag",
+        secondary="article_tag",
+        backref="articles",
+        lazy="selectin"
+    )
 

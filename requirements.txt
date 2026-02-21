@@ -11,3 +11,4 @@ pypinyin
 sqlalchemy 
 alembic
 asyncpg
+gunicorn

@@ -57,10 +57,19 @@ def list_publish_article(
 
 def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     sql = """
-    SELECT id, author_id, title, slug, content_md,
-    created_at, updated_at, published_at, deleted_at,view_count  
-    FROM article
-    WHERE slug = %s
+    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
+    COALESCE(
+        (
+            SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+            FROM article_tag at
+            JOIN tag t ON at.tag_id = t.id
+            WHERE at.article_id = a.id
+        ),
+        '[]'::json
+    ) as tags
+    FROM article a
+    WHERE a.slug = %s
     """
     data = fetch_one(conn, sql, (slug,))
     return Article(**data) if data else None
@@ -68,10 +77,19 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
 
 def detail_publish_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     sql = """
-    SELECT id, author_id, title, slug, content_md,
-    created_at, updated_at, published_at, deleted_at,view_count  
-    FROM article
-    WHERE slug = %s AND published_at IS NOT NUll
+    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
+    COALESCE(
+        (
+            SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+            FROM article_tag at
+            JOIN tag t ON at.tag_id = t.id
+            WHERE at.article_id = a.id
+        ),
+        '[]'::json
+    ) as tags
+    FROM article a
+    WHERE a.slug = %s AND a.published_at IS NOT NUll
     """
     data = fetch_one(conn, sql, (slug,))
     return Article(**data) if data else None
@@ -79,10 +97,19 @@ def detail_publish_article_by_slug(conn: psycopg.Connection, slug: str) -> Artic
 
 def detail_article_by_id(conn: psycopg.Connection, id: str) -> Article:
     sql = """
-    SELECT id, author_id, title, slug, content_md,
-    created_at, updated_at, published_at, deleted_at,view_count  
-    FROM article
-    WHERE id = %s
+    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
+    COALESCE(
+        (
+            SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+            FROM article_tag at
+            JOIN tag t ON at.tag_id = t.id
+            WHERE at.article_id = a.id
+        ),
+        '[]'::json
+    ) as tags
+    FROM article a
+    WHERE a.id = %s
     """
     data = fetch_one(conn, sql, (id,))
     return Article(**data) if data else None
@@ -103,6 +130,12 @@ def create_article(conn: psycopg.Connection, article: ArticleCreated) -> bool:
     )
 
     affected = execute(conn, sql, params)
+    
+    if affected == 1 and article.tag_ids:
+        tag_sql = "INSERT INTO article_tag (article_id, tag_id) VALUES (%s, %s)"
+        for tag_id in article.tag_ids:
+            execute(conn, tag_sql, (article.id, tag_id))
+            
     return affected == 1
 
 
@@ -120,6 +153,18 @@ def update_article(conn: psycopg.Connection, article: ArticleUpdate) -> bool:
     )
 
     affected = execute(conn, sql, params)
+    
+    if affected == 1 and article.tag_ids is not None:
+        # Delete old tags
+        delete_sql = "DELETE FROM article_tag WHERE article_id = %s"
+        execute(conn, delete_sql, (article.id,))
+        
+        # Insert new tags
+        if article.tag_ids:
+            tag_sql = "INSERT INTO article_tag (article_id, tag_id) VALUES (%s, %s)"
+            for tag_id in article.tag_ids:
+                execute(conn, tag_sql, (article.id, tag_id))
+                
     return affected == 1
 
 

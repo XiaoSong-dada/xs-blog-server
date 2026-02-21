@@ -6,10 +6,13 @@ from uuid import UUID
 from sqlalchemy import select, func, update, text, exists, literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import selectinload
 from app.models.article import Article as ArticleModel
 from app.models.article_like import ArticleLike
 from app.models.article_bookmark import ArticleBookmark
 from app.models.comment import Comment
+from app.models.article_tag import ArticleTag
+from app.models.tag import Tag
 from app.schemas.article import (
     Article,
     ArticleQuery,
@@ -34,6 +37,7 @@ class ArticleRepoAsync:
         user_id: Optional[UUID] = None,
     ) -> tuple[list[Article], int]:
         conditions = []
+        joins = []
         if search:
             if search.slug:
                 conditions.append(ArticleModel.slug.ilike(f"%{search.slug}%"))
@@ -45,10 +49,17 @@ class ArticleRepoAsync:
                 conditions.append(ArticleModel.published_at.is_not(None))
             elif search.published_at == "0":
                 conditions.append(ArticleModel.published_at.is_(None))
+            if search.tag_id:
+                joins.append(ArticleTag)
+                conditions.append(ArticleTag.tag_id == search.tag_id)
+                conditions.append(ArticleTag.article_id == ArticleModel.id)
 
         conditions.append(ArticleModel.deleted_at.is_(None))
 
-        total_stmt = select(func.count()).select_from(ArticleModel).where(*conditions)
+        total_stmt = select(func.count()).select_from(ArticleModel)
+        for j in joins:
+            total_stmt = total_stmt.join(j, ArticleModel.id == j.article_id)
+        total_stmt = total_stmt.where(*conditions)
         total = await db.scalar(total_stmt)
         total = int(total or 0)
 
@@ -125,7 +136,11 @@ class ArticleRepoAsync:
                 ArticleModel.published_at,
                 ArticleModel.deleted_at,
             )
-            .where(*conditions)
+        )
+        for j in joins:
+            items_stmt = items_stmt.join(j, ArticleModel.id == j.article_id)
+        items_stmt = (
+            items_stmt.where(*conditions)
             .order_by(ArticleModel.title.asc())
             .limit(limit)
             .offset(offset)
@@ -133,7 +148,27 @@ class ArticleRepoAsync:
         result = await db.execute(items_stmt)
         items = result.all()
 
-        return [Article(**dict(r._mapping)) for r in items], total
+        article_ids = [r.id for r in items]
+        tags_map = {}
+        if article_ids:
+            tags_stmt = (
+                select(ArticleTag.article_id, Tag)
+                .join(Tag, ArticleTag.tag_id == Tag.id)
+                .where(ArticleTag.article_id.in_(article_ids))
+            )
+            tags_result = await db.execute(tags_stmt)
+            for article_id, tag in tags_result.all():
+                if article_id not in tags_map:
+                    tags_map[article_id] = []
+                tags_map[article_id].append(tag)
+
+        articles = []
+        for r in items:
+            article_dict = dict(r._mapping)
+            article_dict["tags"] = tags_map.get(r.id, [])
+            articles.append(Article(**article_dict))
+
+        return articles, total
 
     @staticmethod
     async def list_publish_article(
@@ -144,6 +179,7 @@ class ArticleRepoAsync:
         user_id: Optional[UUID] = None,
     ) -> tuple[list[Article], int]:
         conditions = [ArticleModel.deleted_at.is_(None), ArticleModel.published_at.is_not(None)]
+        joins = []
         if search:
             if search.slug:
                 conditions.append(ArticleModel.slug.ilike(f"%{search.slug}%"))
@@ -151,8 +187,15 @@ class ArticleRepoAsync:
                 conditions.append(ArticleModel.title.ilike(f"%{search.title}%"))
             if search.content_md:
                 conditions.append(ArticleModel.content_md.ilike(f"%{search.content_md}%"))
+            if search.tag_id:
+                joins.append(ArticleTag)
+                conditions.append(ArticleTag.tag_id == search.tag_id)
+                conditions.append(ArticleTag.article_id == ArticleModel.id)
 
-        total_stmt = select(func.count()).select_from(ArticleModel).where(*conditions)
+        total_stmt = select(func.count()).select_from(ArticleModel)
+        for j in joins:
+            total_stmt = total_stmt.join(j, ArticleModel.id == j.article_id)
+        total_stmt = total_stmt.where(*conditions)
         total = await db.scalar(total_stmt)
         total = int(total or 0)
 
@@ -229,7 +272,11 @@ class ArticleRepoAsync:
                 ArticleModel.published_at,
                 ArticleModel.deleted_at,
             )
-            .where(*conditions)
+        )
+        for j in joins:
+            items_stmt = items_stmt.join(j, ArticleModel.id == j.article_id)
+        items_stmt = (
+            items_stmt.where(*conditions)
             .order_by(ArticleModel.title.asc())
             .limit(limit)
             .offset(offset)
@@ -237,11 +284,31 @@ class ArticleRepoAsync:
         result = await db.execute(items_stmt)
         items = result.all()
 
-        return [Article(**dict(r._mapping)) for r in items], total
+        article_ids = [r.id for r in items]
+        tags_map = {}
+        if article_ids:
+            tags_stmt = (
+                select(ArticleTag.article_id, Tag)
+                .join(Tag, ArticleTag.tag_id == Tag.id)
+                .where(ArticleTag.article_id.in_(article_ids))
+            )
+            tags_result = await db.execute(tags_stmt)
+            for article_id, tag in tags_result.all():
+                if article_id not in tags_map:
+                    tags_map[article_id] = []
+                tags_map[article_id].append(tag)
+
+        articles = []
+        for r in items:
+            article_dict = dict(r._mapping)
+            article_dict["tags"] = tags_map.get(r.id, [])
+            articles.append(Article(**article_dict))
+
+        return articles, total
 
     @staticmethod
     async def detail_article_by_slug(db: AsyncSession, slug: str) -> Optional[Article]:
-        stmt = select(ArticleModel).where(ArticleModel.slug == slug).limit(1)
+        stmt = select(ArticleModel).options(selectinload(ArticleModel.tags)).where(ArticleModel.slug == slug).limit(1)
         result = await db.execute(stmt)
         item = result.scalars().first()
         return Article.model_validate(item) if item else None
@@ -250,6 +317,7 @@ class ArticleRepoAsync:
     async def detail_publish_article_by_slug(db: AsyncSession, slug: str) -> Optional[Article]:
         stmt = (
             select(ArticleModel)
+            .options(selectinload(ArticleModel.tags))
             .where(
                 ArticleModel.slug == slug,
                 ArticleModel.published_at.is_not(None),
@@ -263,7 +331,7 @@ class ArticleRepoAsync:
 
     @staticmethod
     async def detail_article_by_id(db: AsyncSession, id: str) -> Optional[Article]:
-        stmt = select(ArticleModel).where(ArticleModel.id == id).limit(1)
+        stmt = select(ArticleModel).options(selectinload(ArticleModel.tags)).where(ArticleModel.id == id).limit(1)
         result = await db.execute(stmt)
         item = result.scalars().first()
         return Article.model_validate(item) if item else None
@@ -283,8 +351,12 @@ class ArticleRepoAsync:
             content_md=article.content_md,
         )
         db.add(obj)
+        
+        if article.tag_ids:
+            for tag_id in article.tag_ids:
+                db.add(ArticleTag(article_id=obj.id, tag_id=tag_id))
+                
         await db.commit()
-        await db.refresh(obj)
         return True
 
     @staticmethod
@@ -299,6 +371,16 @@ class ArticleRepoAsync:
             )
         )
         result = await db.execute(stmt)
+        
+        if article.tag_ids is not None:
+            # Delete old tags
+            delete_stmt = text("DELETE FROM article_tag WHERE article_id = :article_id")
+            await db.execute(delete_stmt, {"article_id": article.id})
+            
+            # Add new tags
+            for tag_id in article.tag_ids:
+                db.add(ArticleTag(article_id=article.id, tag_id=tag_id))
+                
         await db.commit()
         return result.rowcount == 1
 
