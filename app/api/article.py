@@ -7,7 +7,13 @@ from app.schemas.base import (
     ErrorResponse,
 )
 from uuid import UUID
-from app.schemas.article import ArticleQuery, ArticleCreated, ArticleUpdate
+from app.schemas.article import (
+    ArticleQuery,
+    ArticleCreated,
+    ArticleUpdate,
+    ArticleTagUpdate,
+    ArticleTagBatchImport,
+)
 from app.schemas.user import UserInDB
 from app.services.article_service import (
     get_article_page,
@@ -89,6 +95,52 @@ def update(acticle: ArticleUpdate, _user: UserInDB = Depends(require_admin)):
             message="修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+
+
+@router.put("/tag/{article_id}", response_model=SuccessResponseBase)
+async def update_article_tags(
+    article_id: UUID,
+    payload: ArticleTagUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
+    logger.info("update article tags article_id=%s tag_ids_count=%s", article_id, len(payload.tag_ids))
+
+    ok = await ArticleService.replace_article_tags(db, article_id, payload.tag_ids)
+    if not ok:
+        return ErrorResponse(
+            message="文章不存在或已删除", code=status.HTTP_404_NOT_FOUND
+        )
+    return SuccessResponseBase(message="ok", code=status.HTTP_200_OK)
+
+
+@router.post("/tag-import/batch", response_model=SuccessResponse)
+async def batch_import_article_tags(
+    payload: ArticleTagBatchImport,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
+    if not payload.article_ids:
+        return ErrorResponse(message="article_ids 不能为空", code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+    if not payload.tags:
+        return ErrorResponse(message="tags 不能为空", code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+    logger.info(
+        "batch import article tags article_count=%s tag_count=%s",
+        len(payload.article_ids),
+        len(payload.tags),
+    )
+
+    result = await ArticleService.batch_import_article_tags(
+        db,
+        payload.article_ids,
+        payload.tags,
+    )
+    return SuccessResponse(
+        message="ok",
+        code=status.HTTP_200_OK,
+        data=result,
+    )
 
 
 @router.delete("/{id}", response_model=SuccessResponseBase)

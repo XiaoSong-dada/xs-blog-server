@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select, func, update, text, exists, literal
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.orm import selectinload
@@ -383,6 +384,80 @@ class ArticleRepoAsync:
                 
         await db.commit()
         return result.rowcount == 1
+
+    @staticmethod
+    async def replace_article_tags(
+        db: AsyncSession,
+        article_id: UUID,
+        tag_ids: list[UUID],
+    ) -> bool:
+        # Replace strategy: delete all then bulk insert selected ids.
+        await db.execute(
+            text("DELETE FROM article_tag WHERE article_id = :article_id"),
+            {"article_id": article_id},
+        )
+
+        unique_tag_ids = list(dict.fromkeys(tag_ids))
+        if unique_tag_ids:
+            for tag_id in unique_tag_ids:
+                db.add(ArticleTag(article_id=article_id, tag_id=tag_id))
+
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def get_existing_tag_ids(db: AsyncSession, tag_ids: list[UUID]) -> list[UUID]:
+        unique_tag_ids = list(dict.fromkeys(tag_ids))
+        if not unique_tag_ids:
+            return []
+
+        valid_tag_stmt = select(Tag.id).where(Tag.id.in_(unique_tag_ids))
+        valid_rows = await db.scalars(valid_tag_stmt)
+        valid_tag_id_set = set(valid_rows.all())
+
+        # Keep input order while filtering invalid ids.
+        return [tag_id for tag_id in unique_tag_ids if tag_id in valid_tag_id_set]
+
+    @staticmethod
+    async def get_existing_article_ids(db: AsyncSession, article_ids: list[UUID]) -> list[UUID]:
+        unique_article_ids = list(dict.fromkeys(article_ids))
+        if not unique_article_ids:
+            return []
+
+        stmt = (
+            select(ArticleModel.id)
+            .where(
+                ArticleModel.id.in_(unique_article_ids),
+                ArticleModel.deleted_at.is_(None),
+            )
+        )
+        rows = await db.scalars(stmt)
+        article_id_set = set(rows.all())
+        return [article_id for article_id in unique_article_ids if article_id in article_id_set]
+
+    @staticmethod
+    async def batch_import_article_tags(
+        db: AsyncSession,
+        article_ids: list[UUID],
+        tag_ids: list[UUID],
+    ) -> int:
+        if not article_ids or not tag_ids:
+            return 0
+
+        rows = [
+            {"article_id": article_id, "tag_id": tag_id}
+            for article_id in article_ids
+            for tag_id in tag_ids
+        ]
+
+        stmt = (
+            insert(ArticleTag)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=["article_id", "tag_id"])
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return int(result.rowcount or 0)
 
     @staticmethod
     async def exists_slug_except_id(db: AsyncSession, slug: str, article_id: str) -> bool:

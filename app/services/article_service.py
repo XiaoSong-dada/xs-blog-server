@@ -99,6 +99,46 @@ class ArticleService:
             "offset": query.offset,
         }
 
+    @staticmethod
+    async def replace_article_tags(
+        db: AsyncSession,
+        article_id: UUID,
+        tag_ids: list[UUID],
+    ) -> bool:
+        # Existence check should be handled in service layer.
+        exists = await ArticleRepoAsync.is_delete(db, article_id)
+        if not exists:
+            return False
+
+        # Keep only existing tags before writing relation rows.
+        valid_tag_ids = await ArticleRepoAsync.get_existing_tag_ids(db, tag_ids)
+        await ArticleRepoAsync.replace_article_tags(db, article_id, valid_tag_ids)
+        return True
+
+    @staticmethod
+    async def batch_import_article_tags(
+        db: AsyncSession,
+        article_ids: list[UUID],
+        tag_ids: list[UUID],
+    ) -> dict:
+        valid_article_ids = await ArticleRepoAsync.get_existing_article_ids(db, article_ids)
+        valid_tag_ids = await ArticleRepoAsync.get_existing_tag_ids(db, tag_ids)
+
+        inserted = await ArticleRepoAsync.batch_import_article_tags(
+            db,
+            valid_article_ids,
+            valid_tag_ids,
+        )
+
+        expected_pairs = len(valid_article_ids) * len(valid_tag_ids)
+        return {
+            "inserted": inserted,
+            "expected_pairs": expected_pairs,
+            "skipped": max(expected_pairs - inserted, 0),
+            "valid_article_count": len(valid_article_ids),
+            "valid_tag_count": len(valid_tag_ids),
+        }
+
 
 def get_article_page(search: ArticleQuery | None = None):
     search = search or ArticleQuery()

@@ -52,6 +52,16 @@ class ArticleUpdate(Base):
     tag_ids: Optional[List[UUID]] = None
 
 
+class ArticleTagUpdate(Base):
+    tag_ids: List[UUID] = Field(default_factory=list)
+
+
+class ArticleTagBatchImport(Base):
+    article_ids: List[UUID] = Field(default_factory=list)
+    # Frontend contract uses `tags`; each item is a tag UUID.
+    tags: List[UUID] = Field(default_factory=list)
+
+
 class ArticleDelete(Base):
     id: UUID
     deleted_at: datetime
