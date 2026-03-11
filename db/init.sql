@@ -192,31 +192,71 @@ CREATE INDEX IF NOT EXISTS idx_comment_parent_active ON public.comment (parent_i
 WHERE
     deleted_at IS NULL;
 
--- =========================
--- 标签表：tag
--- =========================
-CREATE TABLE
-    IF NOT EXISTS public.tag (
-        id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-        name varchar(50) NOT NULL,
-        slug varchar(120) NOT NULL,
-        created_at timestamptz NOT NULL DEFAULT now (),
-        CONSTRAINT tag_name_unique UNIQUE (name),
-        CONSTRAINT tag_slug_unique UNIQUE (slug)
-    );
 
--- =========================
--- 文章-标签关联表：article_tag
--- =========================
-CREATE TABLE
-    IF NOT EXISTS public.article_tag (
-        article_id uuid NOT NULL,
-        tag_id uuid NOT NULL,
-        created_at timestamptz NOT NULL DEFAULT now (),
-        CONSTRAINT pk_article_tag PRIMARY KEY (article_id, tag_id),
-        CONSTRAINT fk_article_tag_article FOREIGN KEY (article_id) REFERENCES public.article (id) ON DELETE CASCADE,
-        CONSTRAINT fk_article_tag_tag FOREIGN KEY (tag_id) REFERENCES public.tag (id) ON DELETE CASCADE
-    );
+-- public.friendship_link definition
 
--- 常用索引：按标签查文章
-CREATE INDEX IF NOT EXISTS idx_article_tag_tag_id ON public.article_tag (tag_id);
+-- Drop table
+
+-- DROP TABLE public.friendship_link;
+
+CREATE TABLE public.friendship_link (
+	id uuid DEFAULT gen_random_uuid() NOT NULL,
+	"name" varchar(100) NULL,
+	url varchar(255) NULL,
+	created_at timestamptz DEFAULT now() NULL,
+	updated_at timestamptz DEFAULT now() NULL,
+	description text NULL,
+	logo_url varchar(500) NULL,
+	sort_order int4 NULL,
+	is_active bool DEFAULT true NULL,
+	CONSTRAINT friendship_link_pk PRIMARY KEY (id)
+);
+
+
+-- 1) zhparser extension + chinese config
+CREATE EXTENSION IF NOT EXISTS zhparser;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'chinese_zh') THEN
+    CREATE TEXT SEARCH CONFIGURATION chinese_zh (PARSER = zhparser);
+    ALTER TEXT SEARCH CONFIGURATION chinese_zh
+      ADD MAPPING FOR n,v,a,i,e,l WITH simple;
+  END IF;
+END $$;
+
+-- 2) article.search_vector
+ALTER TABLE public.article
+ADD COLUMN IF NOT EXISTS search_vector tsvector;
+
+-- 3) trigger function
+CREATE OR REPLACE FUNCTION public.article_search_vector_update()
+RETURNS trigger AS $$
+BEGIN
+  NEW.search_vector :=
+      setweight(to_tsvector('chinese_zh', coalesce(NEW.title, '')), 'A') ||
+      setweight(to_tsvector('chinese_zh', coalesce(NEW.content_md, '')), 'B');
+  RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+
+-- 4) trigger
+DROP TRIGGER IF EXISTS trg_article_search_vector_update ON public.article;
+
+CREATE TRIGGER trg_article_search_vector_update
+BEFORE INSERT OR UPDATE OF title, content_md
+ON public.article
+FOR EACH ROW
+EXECUTE FUNCTION public.article_search_vector_update();
+
+-- 5) backfill existing rows
+UPDATE public.article
+SET search_vector =
+      setweight(to_tsvector('chinese_zh', coalesce(title, '')), 'A') ||
+      setweight(to_tsvector('chinese_zh', coalesce(content_md, '')), 'B')
+WHERE search_vector IS NULL;
+
+-- 6) index
+CREATE INDEX IF NOT EXISTS idx_article_search_vector_gin
+ON public.article
+USING GIN (search_vector);

@@ -38,6 +38,45 @@ From the project root:
 docker compose up --build
 ```
 
+Before API starts, the `migrate` service will automatically run:
+
+```
+alembic upgrade head
+```
+
+If migration fails, API will not start. Check migration logs with:
+
+```
+docker compose logs migrate
+```
+
+You can also run migrations manually:
+
+```
+docker compose run --rm migrate
+```
+
+Note:
+If you use Alembic as the schema source of truth, avoid initializing full schema from `db/init.sql` at the same time for a fresh database, otherwise you may hit duplicate object errors.
+
+### 3.1 Scheme A (adopt existing DB)
+
+This repository includes a baseline revision `20260311_0001` (no DDL).
+
+For an already-initialized database, run this one-time command first:
+
+```
+docker compose run --rm migrate alembic stamp 20260311_0001
+```
+
+Then use normal migration flow:
+
+```
+docker compose run --rm migrate
+```
+
+After stamping, `docker compose up --build` will keep using `alembic upgrade head` before API starts.
+
 ### 4) Verify
 
 - `http://localhost:8000/healthz`
