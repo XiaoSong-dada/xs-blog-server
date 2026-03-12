@@ -179,7 +179,7 @@ def replace_img_url(
         url = match.group("url")
         if url in url_mapping:
             changed = True
-            return f"{match.group(1)}{match.group(2)}{url_mapping[url]}{match.group(4)}"
+            return match.group(0).replace(url, url_mapping[url], 1)
 
         return match.group(0)
 
@@ -243,7 +243,7 @@ def replace_md_img_urls_to_filenames(content: str) -> str:
         new_name = _to_filename(url)
         if not new_name:
             return m.group(0)
-        return f"{m.group(1)}{m.group(2)}{new_name}{m.group(4)}"
+        return m.group(0).replace(url, new_name, 1)
 
     content = _HTML_IMG_RE.sub(html_replacer, content)
 

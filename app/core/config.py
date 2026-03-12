@@ -1,4 +1,30 @@
 import os
+import json
+
+
+def parse_allowed_origins(raw: str | None) -> list[str]:
+    """Parse ALLOWED_ORIGINS from JSON array or comma-separated string."""
+    default_origins = ["http://localhost:5173"]
+    if not raw:
+        return default_origins
+
+    text = raw.strip()
+    if not text:
+        return default_origins
+
+    # Priority: JSON array string, e.g. '["https://xsmach.cn"]'
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                origins = [str(item).strip().strip('"\'') for item in parsed if str(item).strip()]
+                return origins or default_origins
+        except Exception:
+            pass
+
+    # Fallback: comma-separated string
+    origins = [item.strip().strip('"\'') for item in text.split(",") if item.strip()]
+    return origins or default_origins
 
 
 class Settings:
@@ -17,9 +43,7 @@ class Settings:
     POSTGRES_USER: str = os.getenv("POSTGRES_USER")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB")
-    ALLOWED_ORIGINS: list[str] = os.getenv(
-        "ALLOWED_ORIGINS", "http://localhost:5173"
-    ).split(",")
+    ALLOWED_ORIGINS: list[str] = parse_allowed_origins(os.getenv("ALLOWED_ORIGINS"))
     FILE_STORAGE_PATH: str | None = os.getenv("FILE_STORAGE_PATH")
 
     EMAIL_HOST: str = os.getenv("EMAIL_HOST")

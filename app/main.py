@@ -55,6 +55,15 @@ async def app_error_handler(request: Request, exc: AppError):
     )
 
 
+@app.exception_handler(Exception)
+async def internal_error_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content=ErrorResponse(code=500, message="内部服务异常").model_dump(),
+    )
+
+
 @app.get("/")
 def healthz():
     return {"status": "200", "message": "请访问从入口页访问"}
