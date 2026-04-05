@@ -18,9 +18,9 @@ def load_local_env() -> None:
     """Load env vars from local env files if they are not set in process env."""
     root = Path(__file__).resolve().parents[1]
     candidates = [
-        root / "compose" / ".local.env",
-        root / "local.env",
-        root / ".local.env",
+        root / "compose" / ".env",
+        root / ".env",
+        root / ".env",
     ]
 
     for env_file in candidates:

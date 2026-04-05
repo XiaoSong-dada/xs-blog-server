@@ -1,4 +1,4 @@
-.local.env
+.env
 __pycache__/
 *.py[cod]
 *.pyo
@@ -24,5 +24,8 @@ Thumbs.db
 *.sln
 *.sw?
 
+.env
+.env.*
+!.env.example
 local.redis.conf
 storage

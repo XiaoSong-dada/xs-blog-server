@@ -23,6 +23,13 @@
 其他：python-multipart（文件上传）
 ```
 
+## 任务前快速定位
+
+- 开始任何后端任务前，优先查看 `xs-blog-base/doc/service/backend-dependency-map.md`。
+- 如果需求已经落在某个业务域，先在该文档的“业务快速定位”里找到对应业务链条，再进入具体代码。
+- 如果当前项目概述只覆盖初期结构，而真实代码已继续扩展，也先以该图谱文档为准完成落点定位。
+- 默认定位顺序：API 入口 -> Service 编排 -> Repository 数据访问 -> Schema / Model / Security / Core / Utils。
+
 ## 编码规范
 
 1. **Python 风格**：遵循 PEP 8，使用 async/await 处理 I/O 操作

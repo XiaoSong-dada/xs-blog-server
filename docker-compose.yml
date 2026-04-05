@@ -2,7 +2,7 @@ services:
   migrate:
     build: .
     container_name: icu.xiaosong.blog.service.migrate
-    env_file: ./compose/.local.env
+    env_file: ./compose/.env
     environment:
       - PYTHONPATH=/app
     depends_on:
@@ -15,7 +15,7 @@ services:
   api:
     build: .
     container_name: icu.xiaosong.blog.service.api
-    env_file: ./compose/.local.env
+    env_file: ./compose/.env
     environment:
       - PYTHONPATH=/app
     depends_on:
@@ -33,7 +33,7 @@ services:
   db:
     image: zhparser/zhparser:bullseye-16
     container_name: icu.xiaosong.blog.service.db
-    env_file: ./compose/.local.env
+    env_file: ./compose/.env
     ports:
       - "5432:5432"
     healthcheck:
