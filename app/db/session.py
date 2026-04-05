@@ -14,7 +14,12 @@ def build_async_db_url() -> str:
     没有则用 POSTGRES_* 拼接。
     """
     if settings.DATABASE_URL:  # :contentReference[oaicite:2]{index=2}
-        return settings.DATABASE_URL
+        raw_url = settings.DATABASE_URL
+        if raw_url.startswith("postgresql+asyncpg://"):
+            return raw_url
+        if raw_url.startswith("postgresql://"):
+            return raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return raw_url
 
     # 来自你的配置：POSTGRES_HOST/PORT/USER/PASSWORD/DB :contentReference[oaicite:3]{index=3}
     host = settings.POSTGRES_HOST
