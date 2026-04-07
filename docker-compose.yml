@@ -35,7 +35,7 @@ services:
     container_name: icu.xiaosong.blog.service.db
     env_file: ./compose/.env
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
       interval: 5s
@@ -50,7 +50,7 @@ services:
   redis:
     image: redis:8-alpine
     ports:
-      - "6379:6379"
+      - "${REDIS_PUBLISH_PORT:-6379}:6379"
     command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
     volumes:
       - ./compose/store/local.redis.conf:/usr/local/etc/redis/redis.conf:ro
