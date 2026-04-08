@@ -33,13 +33,13 @@ from app.utils.file_utils import (
     fetch_or_copy_image_to_dir,
 )
 from pathlib import Path
-from app.schemas.article import Article, ArticleExportOut
+from app.schemas.article import ArticleCreated, ArticleExportOut
 from uuid import UUID
 from app.repositories.article_repo import (
-    create_article,
     search_article_by_ids,
-    detail_article_by_slug,
 )
+from app.repositories.article_repo_async import ArticleRepoAsync
+from app.db.session import SessionLocal
 from urllib.parse import urlparse
 from app.utils.pinyin_utils import filename_to_slug
 
@@ -48,15 +48,15 @@ logger = logging.getLogger(__name__)
 IMPORT_MARKDOWN_TYPE = "article_markdown"
 
 
-def build_unique_slug(conn, base_slug: str, max_tries: int = 1000) -> str:
+async def build_unique_slug_async(db, base_slug: str, max_tries: int = 1000) -> str:
     """避免 slug 冲突（包括软删除占用 slug 的场景）。"""
     slug = base_slug or "untitled"
-    if not detail_article_by_slug(conn, slug):
+    if not await ArticleRepoAsync.detail_article_by_slug(db, slug):
         return slug
 
     for i in range(1, max_tries + 1):
         candidate = f"{slug}-{i}"
-        if not detail_article_by_slug(conn, candidate):
+        if not await ArticleRepoAsync.detail_article_by_slug(db, candidate):
             return candidate
 
     raise AppError("生成唯一 slug 失败", code=status.HTTP_409_CONFLICT)
@@ -334,18 +334,17 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
             content_md = file.read_text(encoding="utf-8", errors="replace")
 
             # 4) 创建 Article
-            article = Article(
+            article = ArticleCreated(
                 author_id=user_id,
                 title=title,
                 slug=slug,
                 content_md=content_md,
-                view_count=0,
-                created_at=now,
+                tag_ids=[],
             )
 
-            with transaction() as conn:
-                article.slug = build_unique_slug(conn, article.slug)
-                ok = create_article(conn, article)
+            async with SessionLocal() as db:
+                article.slug = await build_unique_slug_async(db, article.slug)
+                ok = await ArticleRepoAsync.create_article(db, article)
 
             if ok:
                 result.success.append(str(file))
