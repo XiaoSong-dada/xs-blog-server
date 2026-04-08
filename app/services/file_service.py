@@ -33,15 +33,33 @@ from app.utils.file_utils import (
     fetch_or_copy_image_to_dir,
 )
 from pathlib import Path
-from app.schemas.article import Article, ArticleExportOut
+from app.schemas.article import ArticleCreated, ArticleExportOut
 from uuid import UUID
-from app.repositories.article_repo import create_article, search_article_by_ids
+from app.repositories.article_repo import (
+    search_article_by_ids,
+)
+from app.repositories.article_repo_async import ArticleRepoAsync
+from app.db.session import SessionLocal
 from urllib.parse import urlparse
 from app.utils.pinyin_utils import filename_to_slug
 
 BYTES_PER_MB = 1024 * 1024
 logger = logging.getLogger(__name__)
 IMPORT_MARKDOWN_TYPE = "article_markdown"
+
+
+async def build_unique_slug_async(db, base_slug: str, max_tries: int = 1000) -> str:
+    """避免 slug 冲突（包括软删除占用 slug 的场景）。"""
+    slug = base_slug or "untitled"
+    if not await ArticleRepoAsync.detail_article_by_slug(db, slug):
+        return slug
+
+    for i in range(1, max_tries + 1):
+        candidate = f"{slug}-{i}"
+        if not await ArticleRepoAsync.detail_article_by_slug(db, candidate):
+            return candidate
+
+    raise AppError("生成唯一 slug 失败", code=status.HTTP_409_CONFLICT)
 
 
 def is_remote_url(s: str) -> bool:
@@ -256,6 +274,10 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
 
     md_files = scan_md_files(base_dir)
 
+    if not md_files:
+        await UploadSessionService.update_failed(session_id, "未找到可导入的 Markdown 文件")
+        raise AppError("提交失败：未找到可导入的 Markdown 文件", code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+
     result = CommitResult(success=[], errors=[])
 
     if need_replace:
@@ -291,7 +313,7 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
 
                 # 5) 构建替换映射：旧路径 -> 新路径（这里建议存“可访问的 URL/相对路径”，别存磁盘绝对路径）
                 #    例如：/static/<file_path>  或 你自己的 CDN URL
-                new_url = f"/static/{file_path.replace(os.sep, '/')}"
+                new_url = file_path.replace(os.sep, '/')
                 old_and_new_img_mapping[img] = new_url
 
             # 6) 替换 md 中的图片链接（只有有映射才替换）
@@ -312,17 +334,17 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
             content_md = file.read_text(encoding="utf-8", errors="replace")
 
             # 4) 创建 Article
-            article = Article(
+            article = ArticleCreated(
                 author_id=user_id,
                 title=title,
                 slug=slug,
                 content_md=content_md,
-                view_count=0,
-                created_at=now,
+                tag_ids=[],
             )
 
-            with transaction() as conn:
-                ok = create_article(conn, article)
+            async with SessionLocal() as db:
+                article.slug = await build_unique_slug_async(db, article.slug)
+                ok = await ArticleRepoAsync.create_article(db, article)
 
             if ok:
                 result.success.append(str(file))
@@ -333,6 +355,16 @@ async def commit_file_to_db(session_id: str, user_id: UUID):
 
         except Exception as e:
             result.errors.append(UploadError(file_name=str(file), error=str(e)))
+
+    if not result.success:
+        reason = "; ".join([f"{e.file_name}: {e.error}" for e in result.errors[:3]])
+        await UploadSessionService.update_failed(session_id, reason or "未导入任何文章")
+        raise AppError(
+            f"提交失败：未导入任何文章。{reason or '可能 slug 重复、标题超长或内容不合法'}",
+            code=status.HTTP_409_CONFLICT,
+        )
+
+    await UploadSessionService.update_done(session_id)
 
     return result
 

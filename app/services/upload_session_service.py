@@ -192,3 +192,34 @@ class UploadSessionService:
             lua, 1, key, "COMMITTING", "FAILED", reason, str(now), str(ttl_seconds)
         )
         return int(result) == 1
+
+    @staticmethod
+    async def update_done(session_id: str, ttl_seconds: int = 1800) -> bool:
+        """
+        COMMITTING -> DONE（导入场景，不需要 artifact）。
+        """
+        r: Redis = get_redis()
+        key = key_upload_session(session_id)
+        now = int(time.time())
+
+        lua = """
+        local status = redis.call("HGET", KEYS[1], "status")
+        if not status then
+            return -1
+        end
+        if status ~= ARGV[1] then
+            return 0
+        end
+
+        redis.call("HSET", KEYS[1],
+            "status", ARGV[2],
+            "done_at", ARGV[3]
+        )
+        redis.call("EXPIRE", KEYS[1], ARGV[4])
+        return 1
+        """
+
+        result = await r.eval(
+            lua, 1, key, "COMMITTING", "DONE", str(now), str(ttl_seconds)
+        )
+        return int(result) == 1

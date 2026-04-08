@@ -78,7 +78,7 @@ async def upload_session(
 
 @router.post("/{session_id}/commit", response_model=SuccessResponse)
 async def commit_session(
-    session_id=str,
+    session_id: str,
     _user=Depends(require_admin),
 ):
     result = await commit_file_to_db(session_id, _user.user_id)
