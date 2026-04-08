@@ -16,14 +16,6 @@ from app.schemas.article import (
 )
 from app.schemas.user import UserInDB
 from app.services.article_service import (
-    get_article_page,
-    get_article_by_slug,
-    create_article,
-    update_article,
-    delete_acticle,
-    publish_acticle,
-    get_article_by_id,
-    batch_publish_acticle,
     ArticleService,
 )
 from fastapi import Depends
@@ -57,25 +49,37 @@ async def list_article(
 
 
 @router.get("/{slug}", response_model=SuccessResponse)
-def slug_search(slug: str, _user: UserInDB = Depends(require_admin)):
+async def slug_search(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("query: %s", slug)
-    article = get_article_by_slug(slug)
+    article = await ArticleService.get_article_by_slug(db, slug)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
 @router.get("/id/{id}", response_model=SuccessResponse)
-def slug_search_id(id: str, _user: UserInDB = Depends(require_admin)):
+async def slug_search_id(
+    id: str,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("query: %s", id)
-    article = get_article_by_id(id)
+    article = await ArticleService.get_article_by_id(db, id)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
 @router.post("", response_model=SuccessResponse)
-def create(acticle: ArticleCreated, _user: UserInDB = Depends(require_admin)):
+async def create(
+    acticle: ArticleCreated,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("acticle: %s", acticle)
     acticle.author_id = _user.user_id
 
-    article_id = create_article(acticle)
+    article_id = await ArticleService.create_article(db, acticle)
     if not article_id:
         return ErrorResponse(
             message="新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -86,10 +90,14 @@ def create(acticle: ArticleCreated, _user: UserInDB = Depends(require_admin)):
 
 
 @router.put("", response_model=SuccessResponseBase)
-def update(acticle: ArticleUpdate, _user: UserInDB = Depends(require_admin)):
+async def update(
+    acticle: ArticleUpdate,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("acticle: %s", acticle)
 
-    ok = update_article(acticle)
+    ok = await ArticleService.update_article(db, acticle)
     if not ok:
         return ErrorResponse(
             message="修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -144,10 +152,14 @@ async def batch_import_article_tags(
 
 
 @router.delete("/{id}", response_model=SuccessResponseBase)
-def delete(id: UUID, _user: UserInDB = Depends(require_admin)):
+async def delete(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("acticle_id: %s", id)
 
-    ok = delete_acticle(id)
+    ok = await ArticleService.delete_article(db, id)
     if not ok:
         return ErrorResponse(
             message="删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -156,10 +168,14 @@ def delete(id: UUID, _user: UserInDB = Depends(require_admin)):
 
 
 @router.post("/{id}", response_model=SuccessResponseBase)
-def publish(id: UUID, _user: UserInDB = Depends(require_admin)):
+async def publish(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("publish acticle_id: %s", id)
 
-    ok = publish_acticle(id)
+    ok = await ArticleService.publish_article(db, id)
     if not ok:
         return ErrorResponse(
             message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -168,15 +184,18 @@ def publish(id: UUID, _user: UserInDB = Depends(require_admin)):
 
 
 @router.post("/batch/publish", response_model=SuccessResponseBase)
-def batch_publish(id_array: list[str], _user: UserInDB = Depends(require_admin)):
+async def batch_publish(
+    id_array: list[UUID],
+    db: AsyncSession = Depends(get_db),
+    _user: UserInDB = Depends(require_admin),
+):
     logger.info("batch publish acticle_id: %s", id_array)
-    id_array
     if len(id_array) == 0:
         return ErrorResponse(
             message="批量发布数组不能为空", code=status.HTTP_422_UNPROCESSABLE_CONTENT
         )
 
-    ok = batch_publish_acticle(id_array)
+    ok = await ArticleService.batch_publish_article(db, id_array)
     if not ok:
         return ErrorResponse(
             message="发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR

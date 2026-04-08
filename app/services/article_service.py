@@ -1,23 +1,5 @@
 from app.core.exceptions import AppError
-from app.db.transaction import transaction
 from uuid import UUID, uuid4
-from app.repositories.article_repo import (
-    list_article,
-    detail_article_by_id,
-    detail_article_by_slug,
-    detail_publish_article_by_slug,
-    list_publish_article,
-    create_article as create,
-    update_article as update,
-    exists_slug_except_id,
-    delete_article as delete,
-    is_delete,
-    publish_article as publish,
-    add_view,
-    search_article,
-    check_array_id_is_delete,
-    batch_publish_article as batch_publish,
-)
 from app.schemas.article import (
     ArticleQuery,
     ArticleCreated,
@@ -100,6 +82,91 @@ class ArticleService:
         }
 
     @staticmethod
+    async def get_article_by_slug(db: AsyncSession, slug: str):
+        article = await ArticleRepoAsync.detail_article_by_slug(db, slug)
+        if not article:
+            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
+        return article
+
+    @staticmethod
+    async def get_publish_article_by_slug(db: AsyncSession, slug: str):
+        article = await ArticleRepoAsync.detail_publish_article_by_slug(db, slug)
+        if not article:
+            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
+        return article
+
+    @staticmethod
+    async def get_article_by_id(db: AsyncSession, article_id: str):
+        article = await ArticleRepoAsync.detail_article_by_id(db, article_id)
+        if not article:
+            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
+        return article
+
+    @staticmethod
+    async def create_article(db: AsyncSession, article: ArticleCreated) -> UUID:
+        article.id = uuid4()
+        repeat = await ArticleRepoAsync.detail_article_by_slug(db, article.slug)
+        if repeat:
+            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
+
+        ok = await ArticleRepoAsync.create_article(db, article)
+        if not ok:
+            raise AppError("新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return article.id
+
+    @staticmethod
+    async def update_article(db: AsyncSession, article: ArticleUpdate) -> bool:
+        repeat = await ArticleRepoAsync.exists_slug_except_id(db, article.slug, article.id)
+        if repeat:
+            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
+
+        ok = await ArticleRepoAsync.update_article(db, article)
+        if not ok:
+            raise AppError("修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return True
+
+    @staticmethod
+    async def delete_article(db: AsyncSession, article_id: UUID) -> bool:
+        article = ArticleDelete(id=article_id, deleted_at=utc_now())
+        ok = await ArticleRepoAsync.delete_article(db, article)
+        if not ok:
+            raise AppError("删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return True
+
+    @staticmethod
+    async def publish_article(db: AsyncSession, article_id: UUID) -> bool:
+        exists_article = await ArticleRepoAsync.is_delete(db, article_id)
+        if not exists_article:
+            raise AppError("文章未找到", code=status.HTTP_404_NOT_FOUND)
+
+        article = ArticlePublish(id=article_id, published_at=utc_now())
+        ok = await ArticleRepoAsync.publish_article(db, article)
+        if not ok:
+            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return True
+
+    @staticmethod
+    async def batch_publish_article(db: AsyncSession, article_ids: list[UUID]) -> bool:
+        exists_article = await ArticleRepoAsync.check_array_id_is_delete(db, article_ids)
+        if not exists_article:
+            raise AppError("文章未找到或已删除", code=status.HTTP_404_NOT_FOUND)
+
+        article = BatchArticlePublish(id=article_ids, published_at=utc_now())
+        ok = await ArticleRepoAsync.batch_publish_article(db, article)
+        if not ok:
+            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return True
+
+    @staticmethod
+    async def add_publish_view(db: AsyncSession, article_id: UUID) -> bool:
+        ok = await ArticleRepoAsync.add_view(db, str(article_id))
+        if not ok:
+            raise AppError("新增浏览量失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return True
+
+    @staticmethod
     async def replace_article_tags(
         db: AsyncSession,
         article_id: UUID,
@@ -138,170 +205,3 @@ class ArticleService:
             "valid_article_count": len(valid_article_ids),
             "valid_tag_count": len(valid_tag_ids),
         }
-
-
-def get_article_page(search: ArticleQuery | None = None):
-    search = search or ArticleQuery()
-
-    with transaction() as conn:
-        article, total = list_article(
-            conn,
-            limit=search.limit,
-            offset=search.offset,
-            search=search,
-        )
-
-    return {
-        "data": [a.model_dump() for a in article],
-        "total": total,
-        "limit": search.limit,
-        "offset": search.offset,
-    }
-
-
-def get_publish_article_page(search: ArticleQuery | None = None):
-    search = search or ArticleQuery()
-
-    with transaction() as conn:
-        article, total = list_publish_article(
-            conn,
-            limit=search.limit,
-            offset=search.offset,
-            search=search,
-        )
-
-    return {
-        "data": [a.model_dump() for a in article],
-        "total": total,
-        "limit": search.limit,
-        "offset": search.offset,
-    }
-
-
-def get_article_by_slug(slug: str):
-    with transaction() as conn:
-        article = detail_article_by_slug(conn, slug)
-        if not article:
-            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
-
-    return article
-
-
-def get_publish_article_by_slug(slug: str):
-    with transaction() as conn:
-        article = detail_publish_article_by_slug(conn, slug)
-        if not article:
-            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
-
-    return article
-
-
-def get_article_by_id(id: str):
-    with transaction() as conn:
-        article = detail_article_by_id(conn, id)
-        if not article:
-            raise AppError("article not found", code=status.HTTP_404_NOT_FOUND)
-
-    return article
-
-
-def create_article(article: ArticleCreated) -> str:
-
-    with transaction() as conn:
-        article.id = uuid4()
-        repeat = detail_article_by_slug(conn, article.slug)
-        if repeat:
-            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
-
-        ok = create(conn, article)
-        if not ok:
-            raise AppError("新增失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return article.id
-
-
-def update_article(article: ArticleUpdate) -> bool:
-    with transaction() as conn:
-        # slug 修改查重
-        repeat = exists_slug_except_id(conn, article.slug, article.id)
-        if repeat:
-            raise AppError("slug重复", code=status.HTTP_409_CONFLICT)
-
-        ok = update(conn, article)
-        if not ok:
-            raise AppError("修改失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return True
-
-
-def delete_acticle(id: UUID) -> bool:
-
-    with transaction() as conn:
-        article = ArticleDelete(id=id, deleted_at=utc_now())
-
-        ok = delete(conn, article)
-        if not ok:
-            raise AppError("删除失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return True
-
-
-def publish_acticle(id: UUID) -> bool:
-
-    with transaction() as conn:
-        exists_article = is_delete(conn, id)
-        if not exists_article:
-            raise AppError("文章未找到", code=status.HTTP_404_NOT_FOUND)
-
-        article = ArticlePublish(
-            id=id,
-            published_at=utc_now(),
-        )
-
-        ok = publish(conn, article)
-        if not ok:
-            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return True
-
-
-def batch_publish_acticle(id: list[UUID]) -> bool:
-
-    with transaction() as conn:
-        exists_article = check_array_id_is_delete(conn, id)
-        if not exists_article:
-            raise AppError("文章未找到或已删除", code=status.HTTP_404_NOT_FOUND)
-
-        article = BatchArticlePublish(
-            id=id,
-            published_at=utc_now(),
-        )
-
-        ok = batch_publish(conn, article)
-        if not ok:
-            raise AppError("发布失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return True
-
-
-def add_publish_view(id: UUID) -> bool:
-    with transaction() as conn:
-        ok = add_view(conn, id)
-        if not ok:
-            raise AppError("新增浏览量失败", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return True
-
-
-def search_publish_article(query: ArticleSearchQuery) -> dict:
-    with transaction() as conn:
-        article, total = search_article(
-            conn,
-            query,
-        )
-
-    return {
-        "data": [a.model_dump() for a in article],
-        "total": total,
-        "limit": query.limit,
-        "offset": query.offset,
-    }

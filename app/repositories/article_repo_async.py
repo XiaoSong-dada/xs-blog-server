@@ -314,16 +314,34 @@ class ArticleRepoAsync:
 
     @staticmethod
     async def detail_article_by_slug(db: AsyncSession, slug: str) -> Optional[Article]:
-        stmt = select(ArticleModel).options(selectinload(ArticleModel.tags)).where(ArticleModel.slug == slug).limit(1)
+        stmt = (
+            select(
+                ArticleModel,
+                func.coalesce(User.nick_name, User.username).label("author"),
+            )
+            .options(selectinload(ArticleModel.tags))
+            .join(User, ArticleModel.author_id == User.user_id, isouter=True)
+            .where(ArticleModel.slug == slug)
+            .limit(1)
+        )
         result = await db.execute(stmt)
-        item = result.scalars().first()
-        return Article.model_validate(item) if item else None
+        row = result.first()
+        if not row:
+            return None
+        item, author = row
+        article = Article.model_validate(item)
+        article.author = author
+        return article
 
     @staticmethod
     async def detail_publish_article_by_slug(db: AsyncSession, slug: str) -> Optional[Article]:
         stmt = (
-            select(ArticleModel)
+            select(
+                ArticleModel,
+                func.coalesce(User.nick_name, User.username).label("author"),
+            )
             .options(selectinload(ArticleModel.tags))
+            .join(User, ArticleModel.author_id == User.user_id, isouter=True)
             .where(
                 ArticleModel.slug == slug,
                 ArticleModel.published_at.is_not(None),
@@ -332,15 +350,34 @@ class ArticleRepoAsync:
             .limit(1)
         )
         result = await db.execute(stmt)
-        item = result.scalars().first()
-        return Article.model_validate(item) if item else None
+        row = result.first()
+        if not row:
+            return None
+        item, author = row
+        article = Article.model_validate(item)
+        article.author = author
+        return article
 
     @staticmethod
     async def detail_article_by_id(db: AsyncSession, id: str) -> Optional[Article]:
-        stmt = select(ArticleModel).options(selectinload(ArticleModel.tags)).where(ArticleModel.id == id).limit(1)
+        stmt = (
+            select(
+                ArticleModel,
+                func.coalesce(User.nick_name, User.username).label("author"),
+            )
+            .options(selectinload(ArticleModel.tags))
+            .join(User, ArticleModel.author_id == User.user_id, isouter=True)
+            .where(ArticleModel.id == id)
+            .limit(1)
+        )
         result = await db.execute(stmt)
-        item = result.scalars().first()
-        return Article.model_validate(item) if item else None
+        row = result.first()
+        if not row:
+            return None
+        item, author = row
+        article = Article.model_validate(item)
+        article.author = author
+        return article
 
     @staticmethod
     async def create_article(db: AsyncSession, article: ArticleCreated) -> bool:

@@ -35,9 +35,6 @@ from app.utils.file_utils import (
 from pathlib import Path
 from app.schemas.article import ArticleCreated, ArticleExportOut
 from uuid import UUID
-from app.repositories.article_repo import (
-    search_article_by_ids,
-)
 from app.repositories.article_repo_async import ArticleRepoAsync
 from app.db.session import SessionLocal
 from urllib.parse import urlparse
@@ -380,12 +377,12 @@ async def commit_file_to_db_export(commit_result: SessionCommitParams, user_id: 
         raise AppError("不可重复提交或会话已关闭", code=status.HTTP_409_CONFLICT)
 
     # 1) 查文章
-    with transaction() as conn:
-        articles: List[ArticleExportOut] = search_article_by_ids(
-            conn, commit_result.article_ids
+    async with SessionLocal() as db:
+        articles: List[ArticleExportOut] = await ArticleRepoAsync.search_article_by_ids(
+            db, commit_result.article_ids
         )
-        if not articles:
-            raise AppError("未找到文章", code=status.HTTP_404_NOT_FOUND)
+    if not articles:
+        raise AppError("未找到文章", code=status.HTTP_404_NOT_FOUND)
 
     # 2) 抽图 + 替换为文件名
     article_img_mapping: Dict[UUID, List[str]] = {}

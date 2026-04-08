@@ -8,10 +8,6 @@ from app.db.deps import get_db
 from app.schemas.user import UserInDB
 from app.security.permissions import require_login_optional
 from app.services.article_service import (
-    get_publish_article_page,
-    get_publish_article_by_slug,
-    add_publish_view,
-    search_publish_article,
     ArticleService,
 )
 
@@ -37,17 +33,23 @@ async def publish_list(
 
 # 允许获取已发布文章
 @router.get("/{slug}", response_model=SuccessResponse)
-def slug_search(slug: str):
+async def slug_search(
+    slug: str,
+    db: AsyncSession = Depends(get_db),
+):
     logger.info("query: %s", slug)
-    article = get_publish_article_by_slug(slug)
+    article = await ArticleService.get_publish_article_by_slug(db, slug)
     return SuccessResponse(message="ok", code=status.HTTP_200_OK, data=article)
 
 
 # 增加浏览量
-@router.post("/{id}/view", response_model=SuccessResponse)
-def add_view(id: UUID):
+@router.post("/{id}/view", response_model=SuccessResponseBase)
+async def add_view(
+    id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
     logger.info("query: %s", id)
-    article = add_publish_view(id)
+    await ArticleService.add_publish_view(db, id)
     return SuccessResponseBase(message="ok", code=status.HTTP_201_CREATED)
 
 
