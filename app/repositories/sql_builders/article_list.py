@@ -10,7 +10,7 @@ from app.schemas.article import ArticleQuery, ArticleSearchQuery
 
 def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuery:
     base_select = """
-    SELECT a.id, a.author_id, a.title, a.slug, a.content_md, a.created_at, 
+    SELECT a.id, a.author_id, COALESCE(u.nick_name, u.username) AS author, a.title, a.slug, a.content_md, a.created_at, 
     a.updated_at, a.published_at ,a.deleted_at, a.view_count,
     COALESCE(
         (
@@ -22,6 +22,7 @@ def build_article_list_query(search: Optional[ArticleQuery] = None) -> BuiltQuer
         '[]'::json
     ) as tags
     FROM article a
+    LEFT JOIN users u ON a.author_id = u.user_id
     """
     base_count = "SELECT COUNT(*) FROM article a"
 
@@ -53,7 +54,7 @@ def build_publish_article_list_query(
     search: Optional[ArticleQuery] = None,
 ) -> BuiltQuery:
     base_select = """
-    SELECT a.id, a.author_id, a.title, a.slug, a.content_md, a.created_at, 
+    SELECT a.id, a.author_id, COALESCE(u.nick_name, u.username) AS author, a.title, a.slug, a.content_md, a.created_at, 
     a.updated_at, a.published_at ,a.deleted_at, a.view_count,
     COALESCE(
         (
@@ -65,6 +66,7 @@ def build_publish_article_list_query(
         '[]'::json
     ) as tags
     FROM article a
+    LEFT JOIN users u ON a.author_id = u.user_id
     """
     base_count = "SELECT COUNT(*) FROM article a"
 
@@ -94,7 +96,8 @@ def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
     # 没关键词：你可以选择返回空，或者退化成普通列表（我建议返回空更清晰）
     if not kw:
         data_sql = """
-            SELECT a.id, a.slug, a.title, a.published_at, a.view_count,
+             SELECT a.id, a.author_id, NULL::text AS author, a.slug, a.title, a.published_at, a.view_count,
+                 '[]'::json AS tags,
                    0::float AS rank,
                    ''::text AS snippet,
                    false AS hit_title,
@@ -111,10 +114,21 @@ def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
         )
         SELECT
             a.id,
+            a.author_id,
+            COALESCE(u.nick_name, u.username) AS author,
             a.slug,
             a.title,
             a.published_at,
             a.view_count,
+            COALESCE(
+                (
+                    SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+                    FROM public.article_tag at
+                    JOIN public.tag t ON at.tag_id = t.id
+                    WHERE at.article_id = a.id
+                ),
+                '[]'::json
+            ) AS tags,
             ts_rank_cd(a.search_vector, q.query) AS rank,
             ts_headline(
                 'chinese_zh',
@@ -125,6 +139,7 @@ def build_search_list_query(search: ArticleSearchQuery) -> BuiltQuery:
             (to_tsvector('chinese_zh', coalesce(a.title,'')) @@ q.query) AS hit_title,
             (to_tsvector('chinese_zh', coalesce(a.content_md,'')) @@ q.query) AS hit_content
         FROM public.article a
+        LEFT JOIN public.users u ON a.author_id = u.user_id
         CROSS JOIN q
         WHERE a.deleted_at IS NULL
           AND a.published_at IS NOT NULL

@@ -57,7 +57,7 @@ def list_publish_article(
 
 def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     sql = """
-    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    SELECT a.id, a.author_id, COALESCE(u.nick_name, u.username) AS author, a.title, a.slug, a.content_md,
     a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
     COALESCE(
         (
@@ -69,6 +69,7 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
         '[]'::json
     ) as tags
     FROM article a
+    LEFT JOIN users u ON a.author_id = u.user_id
     WHERE a.slug = %s
     """
     data = fetch_one(conn, sql, (slug,))
@@ -77,7 +78,7 @@ def detail_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
 
 def detail_publish_article_by_slug(conn: psycopg.Connection, slug: str) -> Article:
     sql = """
-    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    SELECT a.id, a.author_id, COALESCE(u.nick_name, u.username) AS author, a.title, a.slug, a.content_md,
     a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
     COALESCE(
         (
@@ -89,6 +90,7 @@ def detail_publish_article_by_slug(conn: psycopg.Connection, slug: str) -> Artic
         '[]'::json
     ) as tags
     FROM article a
+    LEFT JOIN users u ON a.author_id = u.user_id
     WHERE a.slug = %s AND a.published_at IS NOT NUll
     """
     data = fetch_one(conn, sql, (slug,))
@@ -97,7 +99,7 @@ def detail_publish_article_by_slug(conn: psycopg.Connection, slug: str) -> Artic
 
 def detail_article_by_id(conn: psycopg.Connection, id: str) -> Article:
     sql = """
-    SELECT a.id, a.author_id, a.title, a.slug, a.content_md,
+    SELECT a.id, a.author_id, COALESCE(u.nick_name, u.username) AS author, a.title, a.slug, a.content_md,
     a.created_at, a.updated_at, a.published_at, a.deleted_at, a.view_count,
     COALESCE(
         (
@@ -109,6 +111,7 @@ def detail_article_by_id(conn: psycopg.Connection, id: str) -> Article:
         '[]'::json
     ) as tags
     FROM article a
+    LEFT JOIN users u ON a.author_id = u.user_id
     WHERE a.id = %s
     """
     data = fetch_one(conn, sql, (id,))

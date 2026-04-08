@@ -11,6 +11,7 @@ from dataclasses import dataclass
 class Article(Base):
     id: UUID = Field(default_factory=uuid4)
     author_id: UUID = Field(default_factory=uuid4)
+    author: Optional[str] = None
     title: str
     slug: str
     content_md: str
@@ -87,6 +88,9 @@ class ArticleSearchOut(Base):
     id: UUID
     slug: str
     title: str
+    author_id: Optional[UUID] = None
+    author: Optional[str] = None
+    tags: List[TagResponse] = Field(default_factory=list)
     published_at: Optional[datetime] = None
     view_count: int
     like_count: int = 0

@@ -14,6 +14,7 @@ from app.models.article_bookmark import ArticleBookmark
 from app.models.comment import Comment
 from app.models.article_tag import ArticleTag
 from app.models.tag import Tag
+from app.models.user import User
 from app.schemas.article import (
     Article,
     ArticleQuery,
@@ -123,6 +124,7 @@ class ArticleRepoAsync:
             select(
                 ArticleModel.id,
                 ArticleModel.author_id,
+                func.coalesce(User.nick_name, User.username).label("author"),
                 ArticleModel.title,
                 ArticleModel.slug,
                 ArticleModel.content_md,
@@ -137,6 +139,7 @@ class ArticleRepoAsync:
                 ArticleModel.published_at,
                 ArticleModel.deleted_at,
             )
+            .join(User, ArticleModel.author_id == User.user_id, isouter=True)
         )
         for j in joins:
             items_stmt = items_stmt.join(j, ArticleModel.id == j.article_id)
@@ -259,6 +262,7 @@ class ArticleRepoAsync:
             select(
                 ArticleModel.id,
                 ArticleModel.author_id,
+                func.coalesce(User.nick_name, User.username).label("author"),
                 ArticleModel.title,
                 ArticleModel.slug,
                 ArticleModel.content_md,
@@ -273,6 +277,7 @@ class ArticleRepoAsync:
                 ArticleModel.published_at,
                 ArticleModel.deleted_at,
             )
+            .join(User, ArticleModel.author_id == User.user_id, isouter=True)
         )
         for j in joins:
             items_stmt = items_stmt.join(j, ArticleModel.id == j.article_id)
@@ -554,10 +559,18 @@ class ArticleRepoAsync:
             )
             SELECT
                 a.id,
+                a.author_id,
+                COALESCE(u.nick_name, u.username) AS author,
                 a.slug,
                 a.title,
                 a.published_at,
                 a.view_count,
+                COALESCE((
+                    SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'created_at', t.created_at))
+                    FROM public.article_tag at
+                    JOIN public.tag t ON at.tag_id = t.id
+                    WHERE at.article_id = a.id
+                ), '[]'::json) AS tags,
                 COALESCE((
                     SELECT COUNT(*) FROM public.article_like al
                     WHERE al.article_id = a.id AND al.deleted_at IS NULL
@@ -600,6 +613,7 @@ class ArticleRepoAsync:
                 (to_tsvector('chinese_zh', coalesce(a.title,'')) @@ q.query) AS hit_title,
                 (to_tsvector('chinese_zh', coalesce(a.content_md,'')) @@ q.query) AS hit_content
             FROM public.article a
+            LEFT JOIN public.users u ON a.author_id = u.user_id
             CROSS JOIN q
             WHERE a.deleted_at IS NULL
               AND a.published_at IS NOT NULL
