@@ -20,6 +20,8 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_redis()
@@ -29,7 +31,13 @@ async def lifespan(app: FastAPI):
         await close_redis()
 
 
-app = FastAPI(lifespan=lifespan)
+
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None if settings.IS_PRODUCTION else "/docs",
+    redoc_url=None if settings.IS_PRODUCTION else "/redoc",
+    openapi_url=None if settings.IS_PRODUCTION else "/openapi.json",
+)
 app.mount("/static", StaticFiles(directory=settings.FILE_STORAGE_PATH), name="static")
 
 app.include_router(api_router, prefix="/api")

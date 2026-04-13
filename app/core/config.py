@@ -57,5 +57,7 @@ class Settings:
     DB_POOL_TIMEOUT: int = int(os.getenv("DB_POOL_TIMEOUT", "30"))
     DB_POOL_RECYCLE: int = int(os.getenv("DB_POOL_RECYCLE", "1800"))
     DB_POOL_PRE_PING: bool = os.getenv("DB_POOL_PRE_PING", "true").lower() == "true"
+    # In production, disable schema/docs endpoints to reduce API surface exposure.
+    IS_PRODUCTION: bool = os.getenv("ENV", "development").lower() == "production"
 
 settings = Settings()
