@@ -8,6 +8,7 @@ from app.api.email import router as email_router
 from app.api.friend_link import router as friend_link_router
 from app.api.comment import router as comment_router
 from app.api.tag import router as tag_router
+from app.api.ai import router as ai_router
 
 api_router = APIRouter()
 
@@ -21,3 +22,4 @@ api_router.include_router(email_router, prefix="/email", tags=["email"])
 api_router.include_router(friend_link_router, prefix="/friend_link", tags=["friend_link"])
 api_router.include_router(comment_router, prefix="/comment", tags=["comment"])
 api_router.include_router(tag_router, prefix="/tag", tags=["tag"])
+api_router.include_router(ai_router, prefix="/ai", tags=["ai"])
